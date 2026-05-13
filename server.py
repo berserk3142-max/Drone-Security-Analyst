@@ -47,11 +47,18 @@ async def root():
 async def get_status():
     return sim_state
 
+@app.post("/api/reset")
+async def reset_state():
+    """Force-reset the simulation state (unlocks if stuck)."""
+    sim_state["running"] = False
+    return {"status": "reset", "message": "Simulation state reset successfully"}
+
 @app.get("/api/simulate")
 async def simulate():
     """SSE endpoint — streams frame results in real-time."""
+    # Auto-reset stale lock (if running flag stuck from a dropped connection)
     if sim_state["running"]:
-        return JSONResponse({"error": "Simulation already running"}, 409)
+        sim_state["running"] = False
 
     async def event_generator():
         sim_state["running"] = True
@@ -61,71 +68,77 @@ async def simulate():
         sim_state["objects_count"] = 0
         sim_state["summary"] = ""
 
-        ensure_data_dir()
-        sqlite_store = SQLiteStore()
-        chroma_store = ChromaStore()
-        alert_manager = AlertManager()
-        telemetry_sim = TelemetrySimulator()
-        sqlite_store.clear_all()
-        try: chroma_store.clear_all()
-        except: pass
-
-        yield {"event": "status", "data": json.dumps({"message": "Agent initializing..."})}
-        agent = SecurityAgent(sqlite_store, chroma_store, alert_manager)
-        yield {"event": "status", "data": json.dumps({"message": "Agent ready. Starting patrol..."})}
-
-        frames = get_simulated_frames()
-        sim_state["total_frames"] = len(frames)
-
-        for i, frame in enumerate(frames):
-            telemetry = telemetry_sim.get_telemetry(frame["time"], frame["location"])
-
-            # Run blocking work in thread
-            loop = asyncio.get_event_loop()
-            analysis = await loop.run_in_executor(None, analyze_frame, frame["description"], telemetry)
-            agent_result = await loop.run_in_executor(None, agent.process_frame, frame, analysis, telemetry)
-
-            prev_alert_count = len(sim_state["alerts"])
-            frame_alerts = [a for a in alert_manager.fired_alerts if a not in sim_state["alerts"]]
-            sim_state["alerts"].extend(frame_alerts)
-
-            objects = analysis.get("objects", [])
-            sim_state["objects_count"] += len(objects)
-            sim_state["frames_done"] = i + 1
-
-            entry = {
-                "frame_id": frame["frame_id"],
-                "time": frame["time"],
-                "location": frame["location"],
-                "objects": objects,
-                "event_type": analysis.get("event_type", "unknown"),
-                "risk_level": analysis.get("risk_level", "low").upper(),
-                "description": analysis.get("description", ""),
-                "is_suspicious": analysis.get("is_suspicious", False),
-                "recommended_action": analysis.get("recommended_action", ""),
-                "agent_response": agent_result.get("agent_response", ""),
-                "alerts": frame_alerts,
-            }
-            sim_state["results"].append(entry)
-            yield {"event": "frame", "data": json.dumps(entry, default=str)}
-            await asyncio.sleep(0.5)
-
-        # Generate summary
-        yield {"event": "status", "data": json.dumps({"message": "Generating AI summary..."})}
         try:
-            summary = await loop.run_in_executor(None, agent.get_summary)
-            sim_state["summary"] = summary
-        except Exception as e:
-            sim_state["summary"] = f"Summary error: {e}"
+            ensure_data_dir()
+            sqlite_store = SQLiteStore()
+            chroma_store = ChromaStore()
+            alert_manager = AlertManager()
+            telemetry_sim = TelemetrySimulator()
+            sqlite_store.clear_all()
+            try: chroma_store.clear_all()
+            except: pass
 
-        sqlite_store.close()
-        sim_state["running"] = False
-        yield {"event": "complete", "data": json.dumps({
-            "summary": sim_state["summary"],
-            "total_frames": sim_state["frames_done"],
-            "total_alerts": len(sim_state["alerts"]),
-            "total_objects": sim_state["objects_count"],
-        })}
+            yield {"event": "status", "data": json.dumps({"message": "Agent initializing..."})}
+            agent = SecurityAgent(sqlite_store, chroma_store, alert_manager)
+            yield {"event": "status", "data": json.dumps({"message": "Agent ready. Starting patrol..."})}
+
+            frames = get_simulated_frames()
+            sim_state["total_frames"] = len(frames)
+
+            for i, frame in enumerate(frames):
+                telemetry = telemetry_sim.get_telemetry(frame["time"], frame["location"])
+
+                loop = asyncio.get_event_loop()
+                analysis = await loop.run_in_executor(None, analyze_frame, frame["description"], telemetry)
+                agent_result = await loop.run_in_executor(None, agent.process_frame, frame, analysis, telemetry)
+
+                frame_alerts = [a for a in alert_manager.fired_alerts if a not in sim_state["alerts"]]
+                sim_state["alerts"].extend(frame_alerts)
+
+                objects = analysis.get("objects", [])
+                sim_state["objects_count"] += len(objects)
+                sim_state["frames_done"] = i + 1
+
+                entry = {
+                    "frame_id": frame["frame_id"],
+                    "time": frame["time"],
+                    "location": frame["location"],
+                    "objects": objects,
+                    "event_type": analysis.get("event_type", "unknown"),
+                    "risk_level": analysis.get("risk_level", "low").upper(),
+                    "description": analysis.get("description", ""),
+                    "is_suspicious": analysis.get("is_suspicious", False),
+                    "recommended_action": analysis.get("recommended_action", ""),
+                    "agent_response": agent_result.get("agent_response", ""),
+                    "alerts": frame_alerts,
+                }
+                sim_state["results"].append(entry)
+                yield {"event": "frame", "data": json.dumps(entry, default=str)}
+                await asyncio.sleep(0.5)
+
+            # Generate summary
+            yield {"event": "status", "data": json.dumps({"message": "Generating AI summary..."})}
+            try:
+                summary = await loop.run_in_executor(None, agent.get_summary)
+                sim_state["summary"] = summary
+            except Exception as e:
+                sim_state["summary"] = f"Summary error: {e}"
+
+            try: sqlite_store.close()
+            except: pass
+
+            yield {"event": "complete", "data": json.dumps({
+                "summary": sim_state["summary"],
+                "total_frames": sim_state["frames_done"],
+                "total_alerts": len(sim_state["alerts"]),
+                "total_objects": sim_state["objects_count"],
+            })}
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            yield {"event": "error", "data": json.dumps({"message": str(e)})}
+        finally:
+            sim_state["running"] = False
 
     return EventSourceResponse(event_generator())
 
