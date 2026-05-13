@@ -4,6 +4,16 @@ Loads environment variables and defines project-wide constants.
 """
 
 import os
+import sys
+
+# Fix ChromaDB SQLite version issue on Render/Linux servers
+# ChromaDB requires SQLite >= 3.35.0, but some servers have older versions
+try:
+    import pysqlite3
+    sys.modules["sqlite3"] = pysqlite3
+except ImportError:
+    pass  # pysqlite3 not installed (local dev) — use built-in sqlite3
+
 from dotenv import load_dotenv
 
 load_dotenv()
