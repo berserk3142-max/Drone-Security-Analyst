@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aegis Drone Command - Alerts</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Arimo:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-tint":"#c6c6cb","on-surface-variant":"#c6c6cb","surface-dim":"#101418","surface-container-highest":"#32353a","surface-container-high":"#272a2f","surface-container-lowest":"#0b0e13","surface-container":"#1d2024","on-error-container":"#ffdad6","on-surface":"#e0e2e8",primary:"#c6c6cb","secondary-fixed":"#72ff70","on-tertiary-container":"#ff5d53","on-primary-container":"#939499",surface:"#101418",tertiary:"#ffb4ab",error:"#ffb4ab",outline:"#909095","tertiary-container":"#620005","error-container":"#93000a",background:"#101418","primary-container":"#2b2d31","outline-variant":"#45474a","primary-fixed-dim":"#c6c6cb","tertiary-fixed-dim":"#ffb4ab","on-background":"#e0e2e8","surface-container-low":"#191c20","on-secondary-container":"#007117","surface-bright":"#36393e","secondary-fixed-dim":"#00e639","on-error":"#690005","surface-variant":"#32353a"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"gutter-md":"1.5rem","panel-padding":"2rem","component-gap":"1rem"},fontFamily:{"body-md":["Arimo"],"display-code":["JetBrains Mono"],"headline-lg":["Anton"],"label-caps":["JetBrains Mono"],"headline-md":["Anton"]},fontSize:{"body-md":["16px",{lineHeight:"1.5",fontWeight:"400"}],"display-code":["20px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"500"}],"headline-lg":["48px",{lineHeight:"1.1",letterSpacing:"0.05em",fontWeight:"400"}],"label-caps":["14px",{lineHeight:"1.2",fontWeight:"700"}],"headline-md":["32px",{lineHeight:"1.2",fontWeight:"400"}]}}}};</script>
+<style>.glass-highlight{background:linear-gradient(135deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,0) 50%)}</style>
+</head>
+<body class="bg-background text-on-surface font-body-md h-screen w-screen overflow-hidden flex flex-col">
+<script src="/static/shell.js"></script>
+
+<!-- MAIN -->
+<main class="ml-60 mt-16 p-8 overflow-y-auto bg-surface relative h-[calc(100vh-4rem)]">
+<div class="max-w-6xl mx-auto">
+<div class="bg-surface-container rounded-lg border-4 border-surface-variant shadow-[0_15px_35px_rgba(0,0,0,0.8),inset_0_2px_0_rgba(255,255,255,0.05)] p-panel-padding relative">
+<!-- Corner screws -->
+<div class="absolute top-2 left-2 w-4 h-4 rounded-full bg-surface-dim border border-surface shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)] flex items-center justify-center"><div class="w-2 h-[1px] bg-surface-variant rotate-45"></div></div>
+<div class="absolute top-2 right-2 w-4 h-4 rounded-full bg-surface-dim border border-surface shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)] flex items-center justify-center"><div class="w-2 h-[1px] bg-surface-variant -rotate-12"></div></div>
+<div class="absolute bottom-2 left-2 w-4 h-4 rounded-full bg-surface-dim border border-surface shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)] flex items-center justify-center"><div class="w-2 h-[1px] bg-surface-variant rotate-90"></div></div>
+<div class="absolute bottom-2 right-2 w-4 h-4 rounded-full bg-surface-dim border border-surface shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)] flex items-center justify-center"><div class="w-2 h-[1px] bg-surface-variant rotate-180"></div></div>
+
+<div class="border-b-2 border-surface-dim pb-4 mb-8 flex justify-between items-end">
+<div><h1 class="font-headline-lg text-headline-lg text-on-surface uppercase tracking-wider">Threat Matrix</h1>
+<p class="font-display-code text-[14px] text-outline uppercase tracking-widest mt-1">System Status: <span id="sysStatus" class="text-secondary-fixed-dim">NOMINAL</span></p></div>
+<div id="clock" class="font-display-code text-[24px] text-primary-fixed-dim"></div>
+</div>
+
+<!-- Severity counters -->
+<div class="grid grid-cols-4 gap-6 mb-10">
+<div class="bg-surface-container-lowest border-2 border-surface-dim rounded shadow-[inset_0_8px_20px_rgba(0,0,0,0.9)] p-6 relative overflow-hidden flex flex-col items-center justify-center glass-highlight">
+<div id="cnt-critical" class="font-display-code text-[72px] leading-none text-error drop-shadow-[0_0_15px_rgba(255,180,171,0.6)] font-bold">0</div>
+<div class="font-label-caps text-label-caps text-on-surface-variant mt-4 tracking-[0.2em]">CRITICAL</div>
+<div class="absolute bottom-2 right-2 w-2 h-2 rounded-full bg-error shadow-[0_0_5px_rgba(255,180,171,0.8)] animate-pulse"></div></div>
+<div class="bg-surface-container-lowest border-2 border-surface-dim rounded shadow-[inset_0_8px_20px_rgba(0,0,0,0.9)] p-6 relative overflow-hidden flex flex-col items-center justify-center glass-highlight">
+<div id="cnt-high" class="font-display-code text-[72px] leading-none text-tertiary-fixed-dim font-bold">0</div>
+<div class="font-label-caps text-label-caps text-on-surface-variant mt-4 tracking-[0.2em]">HIGH</div></div>
+<div class="bg-surface-container-lowest border-2 border-surface-dim rounded shadow-[inset_0_8px_20px_rgba(0,0,0,0.9)] p-6 relative overflow-hidden flex flex-col items-center justify-center glass-highlight">
+<div id="cnt-medium" class="font-display-code text-[72px] leading-none text-primary font-bold">0</div>
+<div class="font-label-caps text-label-caps text-on-surface-variant mt-4 tracking-[0.2em]">MEDIUM</div></div>
+<div class="bg-surface-container-lowest border-2 border-surface-dim rounded shadow-[inset_0_8px_20px_rgba(0,0,0,0.9)] p-6 relative overflow-hidden flex flex-col items-center justify-center glass-highlight">
+<div id="cnt-low" class="font-display-code text-[72px] leading-none text-surface-tint font-bold">0</div>
+<div class="font-label-caps text-label-caps text-on-surface-variant mt-4 tracking-[0.2em]">LOW</div></div>
+</div>
+
+<!-- Filter bar -->
+<div class="bg-surface-container-high rounded p-4 mb-8 border border-surface shadow-[inset_0_4px_10px_rgba(0,0,0,0.4)] flex items-center justify-between">
+<div class="font-label-caps text-[12px] text-outline uppercase tracking-widest flex items-center gap-2"><span class="material-symbols-outlined text-[16px]">tune</span> Filter Engaged</div>
+<div class="flex space-x-4" id="filterBtns">
+<button onclick="filterAlerts('all')" class="filter-btn active relative px-6 py-3 bg-surface-container-lowest rounded border border-surface-dim shadow-[inset_0_3px_6px_rgba(0,0,0,0.9)] font-label-caps text-label-caps text-on-surface">ALL</button>
+<button onclick="filterAlerts('CRITICAL')" class="filter-btn relative px-6 py-3 bg-surface-variant rounded border-t border-white/10 shadow-[0_5px_0_#101418] font-label-caps text-label-caps text-error hover:bg-surface-bright transition-all">CRITICAL</button>
+<button onclick="filterAlerts('HIGH')" class="filter-btn relative px-6 py-3 bg-surface-variant rounded border-t border-white/10 shadow-[0_5px_0_#101418] font-label-caps text-label-caps text-on-surface hover:bg-surface-bright transition-all">HIGH</button>
+<button onclick="filterAlerts('MEDIUM')" class="filter-btn relative px-6 py-3 bg-surface-variant rounded border-t border-white/10 shadow-[0_5px_0_#101418] font-label-caps text-label-caps text-on-surface hover:bg-surface-bright transition-all">MEDIUM</button>
+<button onclick="filterAlerts('LOW')" class="filter-btn relative px-6 py-3 bg-surface-variant rounded border-t border-white/10 shadow-[0_5px_0_#101418] font-label-caps text-label-caps text-on-surface hover:bg-surface-bright transition-all">LOW</button>
+</div>
+</div>
+
+<!-- Alert cards -->
+<div id="alertList" class="space-y-4">
+<div class="text-center font-display-code text-outline py-12">Run simulation from Live Feed to generate alerts</div>
+</div>
+</div></div>
+</main>
+
+<script>
+// Clock
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false,timeZone:'UTC'})+' UTC'},1000);
+
+let allAlerts=[];
+let allFrames=[];
+
+function renderAlert(frame, idx) {
+  const risk = (frame.risk_level||'LOW').toUpperCase();
+  const borderColor = risk==='CRITICAL'?'error':risk==='HIGH'?'tertiary-fixed-dim':risk==='MEDIUM'?'primary':'surface-tint';
+  const code = `${risk.substring(0,3)}-${String(idx).padStart(3,'0')}`;
+  return `<div class="alert-card relative bg-surface-container-highest rounded border border-surface-dim shadow-[0_8px_20px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.05)] p-5 pl-8 overflow-hidden group hover:bg-surface-bright transition-colors cursor-pointer" data-risk="${risk}">
+    <div class="absolute left-0 top-0 bottom-0 w-3 bg-${borderColor} shadow-[0_0_20px_rgba(255,180,171,0.5)]"></div>
+    <div class="absolute top-2 left-5 w-2 h-2 rounded-full bg-surface-dim border border-surface shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]"></div>
+    <div class="absolute top-2 right-2 w-2 h-2 rounded-full bg-surface-dim border border-surface shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]"></div>
+    <div class="flex justify-between items-start">
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center gap-3">
+          <span class="font-display-code text-[16px] text-${borderColor}">${code}</span>
+          <span class="font-label-caps text-[10px] text-surface-tint bg-surface-dim px-2 py-0.5 rounded border border-surface-variant">${frame.location||'UNKNOWN'}</span>
+          <span class="font-label-caps text-[10px] text-on-surface bg-surface-variant px-2 py-0.5 rounded">${risk}</span>
+        </div>
+        <h3 class="font-headline-md text-[20px] text-on-surface mt-1">${frame.event_type||'Security Event'}</h3>
+        <p class="font-body-md text-on-surface-variant text-[14px]">${frame.description||''}</p>
+      </div>
+      <div class="flex flex-col items-end gap-2">
+        <span class="font-display-code text-[14px] text-outline">${frame.time||''}</span>
+        <button onclick="this.textContent='ACKNOWLEDGED';this.disabled=true;this.classList.add('opacity-50')" class="bg-surface-variant hover:bg-surface-bright border-t border-white/10 shadow-[0_2px_0_#101418] px-4 py-1.5 rounded font-label-caps text-[12px] text-on-surface transition-all active:translate-y-[2px] active:shadow-none">ACKNOWLEDGE</button>
+      </div>
+    </div></div>`;
+}
+
+function filterAlerts(level) {
+  document.querySelectorAll('.filter-btn').forEach(b=>{
+    b.classList.remove('bg-surface-container-lowest','shadow-[inset_0_3px_6px_rgba(0,0,0,0.9)]');
+    b.classList.add('bg-surface-variant','shadow-[0_5px_0_#101418]');
+  });
+  event.target.classList.add('bg-surface-container-lowest','shadow-[inset_0_3px_6px_rgba(0,0,0,0.9)]');
+  event.target.classList.remove('bg-surface-variant','shadow-[0_5px_0_#101418]');
+  document.querySelectorAll('.alert-card').forEach(c=>{
+    c.style.display = (level==='all'||c.dataset.risk===level)?'block':'none';
+  });
+}
+
+function loadAlerts() {
+  fetch('/api/status').then(r=>r.json()).then(data=>{
+    allFrames = data.results||[];
+    allAlerts = data.alerts||[];
+    const suspicious = allFrames.filter(f=>f.is_suspicious||f.risk_level==='CRITICAL'||f.risk_level==='HIGH');
+    let crit=0,high=0,med=0,low=0;
+    allFrames.forEach(f=>{
+      const r=(f.risk_level||'LOW').toUpperCase();
+      if(r==='CRITICAL')crit++;else if(r==='HIGH')high++;else if(r==='MEDIUM')med++;else low++;
+    });
+    document.getElementById('cnt-critical').textContent=String(crit).padStart(2,'0');
+    document.getElementById('cnt-high').textContent=String(high).padStart(2,'0');
+    document.getElementById('cnt-medium').textContent=String(med).padStart(2,'0');
+    document.getElementById('cnt-low').textContent=String(low).padStart(2,'0');
+    if(crit>0){document.getElementById('sysStatus').textContent='ELEVATED';document.getElementById('sysStatus').classList.add('text-error','animate-pulse');document.getElementById('sysStatus').classList.remove('text-secondary-fixed-dim');}
+    const list=document.getElementById('alertList');
+    if(allFrames.length===0){list.innerHTML='<div class="text-center font-display-code text-outline py-12">Run simulation from Live Feed to generate alerts</div>';return;}
+    const sorted=[...allFrames].sort((a,b)=>{const o={CRITICAL:0,HIGH:1,MEDIUM:2,LOW:3};return (o[a.risk_level]||3)-(o[b.risk_level]||3);});
+    list.innerHTML=sorted.map((f,i)=>renderAlert(f,i)).join('');
+  });
+}
+loadAlerts();
+setInterval(loadAlerts,5000);
+</script>
+</body></html>

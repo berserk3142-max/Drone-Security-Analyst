@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+data/
+*.db
+chroma_db/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+*.pt
+*.onnx
+.gemini/

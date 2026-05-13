@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aegis Drone Command - Live Feed</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Arimo:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {darkMode:"class",theme:{extend:{colors:{"surface-tint":"#c6c6cb","on-surface-variant":"#c6c6cb","surface-dim":"#101418","surface-container-highest":"#32353a","surface-container-high":"#272a2f","surface-container-lowest":"#0b0e13","surface-container":"#1d2024","on-error-container":"#ffdad6","on-surface":"#e0e2e8",primary:"#c6c6cb","secondary-fixed":"#72ff70","on-tertiary-container":"#ff5d53","on-primary-container":"#939499",surface:"#101418",tertiary:"#ffb4ab",error:"#ffb4ab",outline:"#909095","tertiary-container":"#620005","primary-fixed":"#e2e2e7","error-container":"#93000a","secondary-container":"#13ff43",background:"#101418","primary-container":"#2b2d31","outline-variant":"#45474a","primary-fixed-dim":"#c6c6cb","tertiary-fixed-dim":"#ffb4ab","on-background":"#e0e2e8","surface-container-low":"#191c20","on-secondary-container":"#007117","surface-bright":"#36393e","secondary-fixed-dim":"#00e639","on-error":"#690005","surface-variant":"#32353a"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"bezel-width":"4px","gutter-md":"1.5rem","panel-padding":"2rem","component-gap":"1rem"},fontFamily:{"body-md":["Arimo"],"display-code":["JetBrains Mono"],"headline-lg":["Anton"],"label-caps":["JetBrains Mono"],"headline-md":["Anton"]},fontSize:{"body-md":["16px",{lineHeight:"1.5",fontWeight:"400"}],"display-code":["20px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"500"}],"headline-lg":["48px",{lineHeight:"1.1",letterSpacing:"0.05em",fontWeight:"400"}],"label-caps":["14px",{lineHeight:"1.2",fontWeight:"700"}],"headline-md":["32px",{lineHeight:"1.2",fontWeight:"400"}]}}}};
+</script>
+<style>
+.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+.material-symbols-outlined.fill{font-variation-settings:'FILL' 1}
+.scanlines{background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,.3) 50%,rgba(0,0,0,.3));background-size:100% 4px}
+@keyframes flicker{0%{opacity:.95}5%{opacity:.85}10%{opacity:.95}15%{opacity:1}100%{opacity:1}}
+.crt-flicker{animation:flicker .15s infinite alternate}
+.scrollbar-hide::-webkit-scrollbar{display:none}.scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
+::-webkit-scrollbar{width:10px;background:#101418}::-webkit-scrollbar-thumb{background:#32353a;border:1px solid #45474a;border-radius:2px}
+</style>
+</head>
+<body class="bg-surface-dim text-on-surface h-screen overflow-hidden font-body-md" style="background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.01) 0px,rgba(255,255,255,.01) 1px,transparent 1px,transparent 10px),repeating-linear-gradient(0deg,rgba(255,255,255,.01) 0px,rgba(255,255,255,.01) 1px,transparent 1px,transparent 10px)">
+
+<script src="/static/shell.js"></script>
+
+<!-- MAIN -->
+<main class="ml-60 mt-16 p-panel-padding h-[calc(100vh-4rem)] overflow-y-auto flex flex-col gap-6">
+<div class="max-w-7xl mx-auto w-full flex flex-col gap-8">
+
+<!-- LCD Metrics -->
+<section class="bg-surface-container rounded-xl p-4 shadow-[0_15px_30px_rgba(0,0,0,0.8)] border-t border-l border-white/5 border-b-4 border-r-4 border-black/50">
+<div class="flex items-center gap-2 mb-4 px-2">
+<div class="w-2 h-2 rounded-full bg-secondary-fixed-dim shadow-[0_0_8px_#00e639]"></div>
+<h2 class="font-label-caps text-outline uppercase tracking-[0.2em] text-[12px]">Real-Time Metrics Grid</h2>
+</div>
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="relative bg-surface-container-lowest border-t-4 border-l-4 border-surface-dim border-b border-r border-surface-bright rounded p-4 overflow-hidden h-36 flex flex-col justify-between">
+<div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none z-20"></div>
+<div class="absolute inset-0 scanlines pointer-events-none z-10 opacity-60"></div>
+<span class="font-label-caps text-on-surface-variant uppercase tracking-widest z-20 relative text-[11px]">Frames Processed</span>
+<div id="lcd-frames" class="font-display-code text-[42px] leading-none text-secondary-fixed-dim font-medium tracking-tighter drop-shadow-[0_0_12px_rgba(0,230,57,0.7)] z-20 relative crt-flicker">0</div>
+</div>
+<div class="relative bg-surface-container-lowest border-t-4 border-l-4 border-surface-dim border-b border-r border-surface-bright rounded p-4 overflow-hidden h-36 flex flex-col justify-between">
+<div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none z-20"></div>
+<div class="absolute inset-0 scanlines pointer-events-none z-10 opacity-60"></div>
+<span class="font-label-caps text-on-surface-variant uppercase tracking-widest z-20 relative text-[11px]">Objects Detected</span>
+<div id="lcd-objects" class="font-display-code text-[42px] leading-none text-tertiary-fixed-dim font-medium tracking-tighter drop-shadow-[0_0_12px_rgba(255,180,171,0.5)] z-20 relative crt-flicker">0</div>
+</div>
+<div class="relative bg-surface-container-lowest border-t-4 border-l-4 border-surface-dim border-b border-r border-surface-bright rounded p-4 overflow-hidden h-36 flex flex-col justify-between">
+<div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none z-20"></div>
+<div class="absolute inset-0 scanlines pointer-events-none z-10 opacity-60"></div>
+<span class="font-label-caps text-on-surface-variant uppercase tracking-widest z-20 relative text-[11px]">Alerts Fired</span>
+<div id="lcd-alerts" class="font-display-code text-[42px] leading-none text-primary-fixed-dim font-medium tracking-tighter drop-shadow-[0_0_10px_rgba(198,198,203,0.5)] z-20 relative crt-flicker">0</div>
+</div>
+<div class="relative bg-[#1a0505] border-t-4 border-l-4 border-surface-dim border-b border-r border-surface-bright rounded p-4 overflow-hidden h-36 flex flex-col justify-between ring-1 ring-error/30">
+<div class="absolute inset-0 scanlines pointer-events-none z-10 opacity-80"></div>
+<div class="absolute top-0 right-0 p-2 z-20 opacity-80 animate-pulse"><span class="material-symbols-outlined text-error text-sm">warning</span></div>
+<span class="font-label-caps text-error uppercase tracking-widest z-20 relative text-[11px] font-bold">Critical Alerts</span>
+<div id="lcd-critical" class="font-display-code text-[56px] leading-none text-error font-bold tracking-tighter drop-shadow-[0_0_15px_rgba(255,180,171,0.9)] z-20 relative crt-flicker">0</div>
+</div>
+</div>
+</section>
+
+<!-- Action + Log -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8" style="min-height:420px">
+<!-- Run Simulation Panel -->
+<section class="lg:col-span-1 bg-surface-container rounded-xl p-6 shadow-[0_15px_30px_rgba(0,0,0,0.8)] border-t border-l border-white/5 border-b-4 border-r-4 border-black/50 flex flex-col relative">
+<div class="absolute top-3 left-3 w-3 h-3 rounded-full bg-surface-dim shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]"></div>
+<div class="absolute top-3 right-3 w-3 h-3 rounded-full bg-surface-dim shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]"></div>
+<div class="absolute bottom-3 left-3 w-3 h-3 rounded-full bg-surface-dim shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]"></div>
+<div class="absolute bottom-3 right-3 w-3 h-3 rounded-full bg-surface-dim shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]"></div>
+<div class="mb-auto text-center mt-4">
+<h3 class="font-headline-md text-on-surface uppercase tracking-widest text-[22px]">Override Matrix</h3>
+<p class="font-label-caps text-outline text-[11px] uppercase mt-2">Auth Required: Lvl 4</p>
+<p id="sim-status" class="font-display-code text-[14px] text-secondary-fixed-dim mt-4 hidden"></p>
+</div>
+<div class="p-6 bg-surface-container-highest rounded-xl border border-surface-variant shadow-[inset_0_10px_20px_rgba(0,0,0,0.8)] mx-auto w-full max-w-[240px] aspect-square flex items-center justify-center relative mt-6">
+<div class="absolute -top-2 -left-2 w-8 h-8 border-t-4 border-l-4 border-surface-container-high rounded-tl-lg"></div>
+<div class="absolute -top-2 -right-2 w-8 h-8 border-t-4 border-r-4 border-surface-container-high rounded-tr-lg"></div>
+<button id="runSimBtn" onclick="runSimulation()" class="relative w-full h-full bg-on-tertiary-container hover:bg-[#ff6d63] active:bg-[#d94a42] transition-all rounded-lg shadow-[0_12px_0_#620005,0_20px_25px_rgba(0,0,0,0.7)] active:shadow-[0_0px_0_#620005,inset_0_8px_15px_rgba(0,0,0,0.6)] active:translate-y-[12px] flex flex-col items-center justify-center gap-2 group">
+<div class="absolute inset-x-2 top-2 h-2 bg-white/20 rounded-t-sm group-active:hidden"></div>
+<span class="material-symbols-outlined text-[48px] text-surface drop-shadow-[0_2px_2px_rgba(255,255,255,0.5)]">power_settings_new</span>
+<span class="font-headline-md text-surface tracking-[0.1em] text-[18px] uppercase leading-tight text-center">Run<br/>Simulation</span>
+</button>
+</div>
+</section>
+
+<!-- Terminal Log -->
+<section class="lg:col-span-2 bg-surface-container rounded-xl p-4 shadow-[0_15px_30px_rgba(0,0,0,0.8)] border-t border-l border-white/5 border-b-4 border-r-4 border-black/50 flex flex-col">
+<div class="flex justify-between items-center mb-3 px-2">
+<h3 class="font-label-caps text-outline uppercase tracking-[0.2em] text-[12px]">Event Log Stream</h3>
+<div class="flex gap-2 items-center">
+<div id="rec-dot" class="w-2 h-2 rounded-full bg-surface-dim"></div>
+<span class="font-display-code text-outline text-[12px]">REC</span>
+</div>
+</div>
+<div class="flex-1 bg-[#020406] rounded-md border-8 border-surface-container-highest shadow-[inset_0_10px_20px_rgba(0,0,0,1)] relative overflow-hidden flex flex-col p-4">
+<div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)] pointer-events-none z-30"></div>
+<div class="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent h-1/3 pointer-events-none z-30"></div>
+<div class="absolute inset-0 scanlines pointer-events-none z-20 opacity-40"></div>
+<div id="logContainer" class="flex-1 overflow-y-auto z-10 flex flex-col gap-2 pr-2 scrollbar-hide">
+<div class="flex items-start gap-3 font-display-code text-[13px]">
+<div class="mt-1 w-3 h-3 shrink-0 rounded-full bg-surface-variant border border-surface relative"><div class="absolute inset-0 rounded-full bg-secondary-fixed-dim shadow-[0_0_8px_#00e639] scale-75"></div></div>
+<span class="text-surface-tint shrink-0">[BOOT]</span>
+<span class="text-secondary-fixed-dim font-bold shrink-0">SYS_OK:</span>
+<span class="text-on-surface-variant">Aegis Drone Command initialized. Awaiting operator input.</span>
+</div>
+<div id="cursor-blink" class="mt-2 w-3 h-5 bg-secondary-fixed-dim animate-pulse ml-8 shadow-[0_0_8px_#00e639]"></div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</main>
+
+<script>
+let simRunning = false;
+function addLog(time, level, code, msg) {
+  const c = document.getElementById('logContainer');
+  const blink = document.getElementById('cursor-blink');
+  if(blink) blink.remove();
+  const colors = {ok:'secondary-fixed-dim',warn:'tertiary',error:'error',critical:'error'};
+  const color = colors[level]||'secondary-fixed-dim';
+  const ledShadow = level==='critical'||level==='error' ? '#ffb4ab' : level==='warn' ? '#ffb4ab' : '#00e639';
+  const isCrit = level==='critical'||level==='error';
+  const wrapper = document.createElement('div');
+  wrapper.className = `flex items-start gap-3 font-display-code text-[13px] ${isCrit?'bg-error/10 p-1 -ml-1 rounded border border-error/20':''}`;
+  wrapper.innerHTML = `
+    <div class="mt-1 w-3 h-3 shrink-0 rounded-full bg-surface-variant border border-surface relative"><div class="absolute inset-0 rounded-full bg-${color} shadow-[0_0_8px_${ledShadow}] scale-75 ${isCrit?'animate-pulse':''}"></div></div>
+    <span class="text-surface-tint shrink-0">[${time}]</span>
+    <span class="text-${color} font-bold shrink-0 drop-shadow-[0_0_5px_rgba(0,230,57,0.5)]">${code}</span>
+    <span class="text-on-surface-variant ${isCrit?'font-bold text-on-surface':''}">${msg}</span>`;
+  c.appendChild(wrapper);
+  const newBlink = document.createElement('div');
+  newBlink.id = 'cursor-blink';
+  newBlink.className = 'mt-2 w-3 h-5 bg-secondary-fixed-dim animate-pulse ml-8 shadow-[0_0_8px_#00e639]';
+  c.appendChild(newBlink);
+  c.scrollTop = c.scrollHeight;
+}
+
+async function runSimulation() {
+  if(simRunning) return;
+  simRunning = true;
+  const btn = document.getElementById('runSimBtn');
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  document.getElementById('rec-dot').classList.add('bg-error','shadow-[0_0_8px_#ffb4ab]','animate-pulse');
+  document.getElementById('rec-dot').classList.remove('bg-surface-dim');
+  const status = document.getElementById('sim-status');
+  status.classList.remove('hidden');
+  status.textContent = 'CONNECTING...';
+  let framesCount=0, objectsCount=0, alertsCount=0, critCount=0;
+  try {
+    const es = new EventSource('/api/simulate');
+    es.addEventListener('status', e => {
+      const d = JSON.parse(e.data);
+      status.textContent = d.message;
+      addLog(new Date().toLocaleTimeString(),'ok','SYS_MSG:',d.message);
+    });
+    es.addEventListener('frame', e => {
+      const f = JSON.parse(e.data);
+      framesCount++;
+      objectsCount += (f.objects||[]).length;
+      document.getElementById('lcd-frames').textContent = framesCount;
+      document.getElementById('lcd-objects').textContent = objectsCount;
+      const risk = (f.risk_level||'LOW').toUpperCase();
+      const lvl = risk==='CRITICAL'?'critical':risk==='HIGH'?'error':risk==='MEDIUM'?'warn':'ok';
+      if(risk==='CRITICAL') { critCount++; document.getElementById('lcd-critical').textContent = String(critCount).padStart(2,'0'); }
+      if(f.alerts && f.alerts.length>0) { alertsCount+=f.alerts.length; document.getElementById('lcd-alerts').textContent = alertsCount; }
+      const objs = (f.objects||[]).join(', ')||'None';
+      addLog(f.time, lvl, `FRM_${f.frame_id}:`, `[${f.location}] Risk:${risk} | Objects: ${objs}`);
+      if(f.is_suspicious) addLog(f.time,'critical','ALERT!!',f.description||'Suspicious activity detected');
+      status.textContent = `Processing frame ${framesCount}/30...`;
+    });
+    es.addEventListener('complete', e => {
+      const d = JSON.parse(e.data);
+      addLog(new Date().toLocaleTimeString(),'ok','COMPLETE:',`Simulation done. ${d.total_frames} frames, ${d.total_alerts} alerts.`);
+      status.textContent = 'SIMULATION COMPLETE';
+      es.close();
+      simRunning = false;
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      document.getElementById('rec-dot').classList.remove('animate-pulse');
+    });
+    es.onerror = () => {
+      addLog(new Date().toLocaleTimeString(),'error','ERR:','Connection lost');
+      es.close();
+      simRunning = false;
+      btn.disabled = false;
+      btn.style.opacity = '1';
+    };
+  } catch(err) {
+    addLog(new Date().toLocaleTimeString(),'error','ERR:',err.message);
+    simRunning = false;
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+// Load existing state on page load
+fetch('/api/status').then(r=>r.json()).then(d=>{
+  document.getElementById('lcd-frames').textContent = d.frames_done||0;
+  document.getElementById('lcd-objects').textContent = d.objects_count||0;
+  document.getElementById('lcd-alerts').textContent = d.alerts?d.alerts.length:0;
+});
+</script>
+</body></html>

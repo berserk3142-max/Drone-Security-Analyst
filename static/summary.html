@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aegis Drone Command - Daily Summary</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Arimo:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-tint":"#c6c6cb","on-surface-variant":"#c6c6cb","surface-dim":"#101418","surface-container-highest":"#32353a","surface-container-high":"#272a2f","surface-container-lowest":"#0b0e13","surface-container":"#1d2024","on-error-container":"#ffdad6","on-surface":"#e0e2e8",primary:"#c6c6cb","secondary-fixed":"#72ff70","on-tertiary-container":"#ff5d53","on-primary-container":"#939499",surface:"#101418",tertiary:"#ffb4ab",error:"#ffb4ab",outline:"#909095","error-container":"#93000a",background:"#101418","primary-container":"#2b2d31","outline-variant":"#45474a","primary-fixed-dim":"#c6c6cb","tertiary-fixed-dim":"#ffb4ab","on-background":"#e0e2e8","surface-container-low":"#191c20","on-secondary-container":"#007117","surface-bright":"#36393e","secondary-fixed-dim":"#00e639","on-error":"#690005","surface-variant":"#32353a"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"gutter-md":"1.5rem","panel-padding":"2rem","component-gap":"1rem"},fontFamily:{"body-md":["Arimo"],"display-code":["JetBrains Mono"],"headline-lg":["Anton"],"label-caps":["JetBrains Mono"],"headline-md":["Anton"]},fontSize:{"body-md":["16px",{lineHeight:"1.5",fontWeight:"400"}],"display-code":["20px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"500"}],"headline-lg":["48px",{lineHeight:"1.1",letterSpacing:"0.05em",fontWeight:"400"}],"label-caps":["14px",{lineHeight:"1.2",fontWeight:"700"}],"headline-md":["32px",{lineHeight:"1.2",fontWeight:"400"}]}}}};</script>
+<style>
+.scanlines{background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,.2) 50%,rgba(0,0,0,.2));background-size:100% 4px}
+.metal-texture{background-image:radial-gradient(circle,#1d2024 1px,transparent 1px);background-size:4px 4px}
+</style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen overflow-hidden">
+<script src="/static/shell.js"></script>
+
+<main class="ml-60 mt-16 flex-1 p-panel-padding bg-surface metal-texture overflow-y-auto relative shadow-[inset_0_10px_30px_rgba(0,0,0,0.8)] h-[calc(100vh-4rem)]">
+<div class="max-w-5xl mx-auto bg-surface-container border-4 border-surface-dim rounded-lg p-5 shadow-[0_10px_30px_rgba(0,0,0,0.9)] relative">
+<!-- Corner Screws -->
+<div class="absolute top-2 left-2 w-2.5 h-2.5 rounded-full bg-outline shadow-[inset_1px_1px_2px_rgba(255,255,255,0.4),inset_-1px_-1px_2px_rgba(0,0,0,0.8)] flex items-center justify-center"><div class="w-1.5 h-0.5 bg-surface-dim rotate-45"></div></div>
+<div class="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-outline shadow-[inset_1px_1px_2px_rgba(255,255,255,0.4),inset_-1px_-1px_2px_rgba(0,0,0,0.8)]"></div>
+<div class="absolute bottom-2 left-2 w-2.5 h-2.5 rounded-full bg-outline shadow-[inset_1px_1px_2px_rgba(255,255,255,0.4),inset_-1px_-1px_2px_rgba(0,0,0,0.8)]"></div>
+<div class="absolute bottom-2 right-2 w-2.5 h-2.5 rounded-full bg-outline shadow-[inset_1px_1px_2px_rgba(255,255,255,0.4),inset_-1px_-1px_2px_rgba(0,0,0,0.8)]"></div>
+<!-- Screen -->
+<div class="bg-surface-container-lowest border-2 border-surface-dim rounded shadow-[inset_0_10px_20px_rgba(0,0,0,1)] relative overflow-hidden flex flex-col min-h-[600px]">
+<div class="absolute inset-0 scanlines pointer-events-none z-10 opacity-40"></div>
+<div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none z-20"></div>
+<div class="p-6 relative z-30 flex-1 flex flex-col">
+<!-- Screen Header -->
+<div class="border-b-2 border-outline-variant pb-3 mb-5 flex justify-between items-end">
+<div><h1 class="font-headline-lg text-[28px] text-on-surface uppercase tracking-wider">Daily Operations Summary</h1>
+<p id="logDate" class="font-display-code text-secondary-fixed-dim text-[13px] mt-1">LOG DATE: -- | AUTHORIZATION: LEVEL 4</p></div>
+<div class="text-right"><span class="font-label-caps text-[11px] text-on-surface-variant block mb-1">System Status</span>
+<div class="flex items-center justify-end gap-2 text-secondary-fixed font-display-code">
+<div class="w-3 h-3 rounded-full bg-secondary-fixed shadow-[0_0_10px_#72ff70] animate-pulse"></div><span class="text-[16px]">NOMINAL</span></div></div>
+</div>
+<!-- Bento Grid -->
+<div class="grid grid-cols-12 gap-5 flex-1">
+<!-- Left Col -->
+<div class="col-span-5 flex flex-col gap-5">
+<div class="bg-surface-container border border-outline-variant p-4 shadow-inner">
+<h2 class="font-label-caps text-[12px] text-primary uppercase border-b border-surface-dim pb-2 mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-[16px]">bar_chart</span>Fleet Overview</h2>
+<div class="space-y-3">
+<div class="flex justify-between items-end border-b border-surface-dim/50 pb-2"><span class="font-display-code text-on-surface-variant text-[13px]">Frames Processed</span><span id="statFrames" class="font-headline-md text-on-surface text-[20px]">--</span></div>
+<div class="flex justify-between items-end border-b border-surface-dim/50 pb-2"><span class="font-display-code text-on-surface-variant text-[13px]">Objects Detected</span><span id="statObjects" class="font-headline-md text-on-surface text-[20px]">--</span></div>
+<div class="flex justify-between items-end"><span class="font-display-code text-on-surface-variant text-[13px]">Alerts Fired</span><span id="statAlerts" class="font-headline-md text-error text-[20px]">--</span></div>
+</div>
+</div>
+<!-- Generate button -->
+<div class="bg-surface-container border border-outline-variant p-4 shadow-inner">
+<button onclick="generateSummary()" id="genBtn" class="w-full bg-primary-container text-on-surface font-headline-md py-3 rounded border-b-4 border-r-4 border-black shadow-[0_4px_0_#0b0e13] active:translate-y-[4px] active:shadow-none transition-all flex items-center justify-center gap-2 text-[16px]">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1">auto_awesome</span>GENERATE AI SUMMARY</button>
+</div>
+<!-- Map -->
+<div class="flex-1 bg-surface border-2 border-surface-dim relative overflow-hidden shadow-inner min-h-[160px]">
+<div class="absolute inset-0 border-[6px] border-surface-container-high z-10 pointer-events-none opacity-80">
+<div class="absolute top-1.5 left-1.5 w-3 h-3 border-t-2 border-l-2 border-secondary-fixed"></div>
+<div class="absolute top-1.5 right-1.5 w-3 h-3 border-t-2 border-r-2 border-secondary-fixed"></div>
+<div class="absolute bottom-1.5 left-1.5 w-3 h-3 border-b-2 border-l-2 border-secondary-fixed"></div>
+<div class="absolute bottom-1.5 right-1.5 w-3 h-3 border-b-2 border-r-2 border-secondary-fixed"></div>
+</div>
+<div class="absolute top-0 left-0 bg-surface-container-high px-2 py-0.5 font-display-code text-[10px] text-primary z-20">SECTOR DELTA MAP</div>
+<div class="w-full h-full bg-gradient-to-br from-[#0a1a0a] to-[#050a05] flex items-center justify-center"><span class="font-display-code text-secondary-fixed-dim/30 text-[12px]">TACTICAL OVERLAY</span></div>
+<div class="absolute top-1/3 left-1/4 w-2 h-2 rounded-full bg-secondary-fixed shadow-[0_0_8px_#72ff70] animate-ping z-20"></div>
+<div class="absolute bottom-1/3 right-1/4 w-2 h-2 rounded-full bg-error shadow-[0_0_8px_#ffb4ab] z-20"></div>
+</div>
+</div>
+<!-- Right Col: Incident Log -->
+<div class="col-span-7 bg-surface-container border border-outline-variant flex flex-col shadow-inner">
+<div class="bg-surface-container-high p-2.5 border-b border-surface-dim flex justify-between items-center">
+<h2 class="font-headline-md text-[16px] text-on-surface uppercase flex items-center gap-2 tracking-wide"><span class="material-symbols-outlined text-[18px]">receipt_long</span>Incident Log</h2>
+<span class="font-display-code text-[11px] bg-surface-dim text-secondary-fixed px-2 py-0.5 border border-secondary-fixed/30 rounded-sm">AUTO-SCROLL: ON</span>
+</div>
+<div id="incidentLog" class="flex-1 p-3 overflow-y-auto space-y-2">
+<div class="text-center font-display-code text-surface-variant pt-4 text-[13px]">--- AWAITING DATA ---</div>
+</div>
+</div>
+</div>
+<!-- AI Summary -->
+<div id="summaryBlock" class="mt-5 bg-surface-container border border-outline-variant p-5 shadow-inner hidden">
+<h2 class="font-headline-md text-on-surface uppercase text-[18px] mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-[20px]">smart_toy</span>AI-Generated Briefing</h2>
+<div id="summaryText" class="font-display-code text-on-surface-variant text-[13px] whitespace-pre-wrap leading-relaxed"></div>
+</div>
+</div>
+</div>
+<div class="absolute bottom-1 right-6 bg-surface-dim border border-outline-variant px-2 py-0.5 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[12px] text-on-surface-variant">precision_manufacturing</span>
+<span class="font-label-caps text-[9px] text-on-surface-variant tracking-widest">AEGIS DEFENSE SYSTEMS // MIL-SPEC</span>
+</div>
+</div>
+</main>
+<script>
+document.getElementById('logDate').textContent=`LOG DATE: ${new Date().toISOString().split('T')[0]} | AUTHORIZATION: LEVEL 4`;
+function loadData(){
+  fetch('/api/status').then(r=>r.json()).then(d=>{
+    document.getElementById('statFrames').textContent=d.frames_done||'--';
+    document.getElementById('statObjects').textContent=d.objects_count||'--';
+    document.getElementById('statAlerts').textContent=(d.alerts||[]).length||'--';
+    const results=d.results||[];
+    if(results.length>0){
+      const log=document.getElementById('incidentLog');log.innerHTML='';
+      results.forEach(f=>{
+        const risk=(f.risk_level||'LOW').toUpperCase();
+        const bc=risk==='CRITICAL'?'error':risk==='HIGH'?'tertiary':risk==='MEDIUM'?'primary':'secondary-fixed';
+        const code=risk==='CRITICAL'?'ERR_ALERT':risk==='HIGH'?'WARN_HIGH':'SYS_ROUTINE';
+        log.innerHTML+=`<div class="flex gap-3 p-2.5 bg-surface border-l-4 border-${bc} relative overflow-hidden">
+          <div class="pt-0.5"><div class="w-3 h-3 rounded-full bg-surface-dim border border-outline-variant flex items-center justify-center shadow-inner">
+          <div class="w-2 h-2 rounded-full bg-${bc} shadow-[0_0_8px_currentColor]"></div></div></div>
+          <div class="flex-1 font-display-code"><div class="flex justify-between items-baseline mb-0.5">
+            <span class="text-${bc} text-[13px]">${code}</span>
+            <span class="text-on-surface-variant text-[11px]">${f.time||''} ZULU</span></div>
+            <p class="text-on-surface text-[12px] uppercase">${f.description||f.event_type||'Event processed'}</p></div></div>`;
+      });
+      log.innerHTML+='<div class="text-center font-display-code text-surface-variant pt-3 border-t border-surface-dim/50 text-[12px]">--- END OF LOG ---</div>';
+    }
+    if(d.summary){document.getElementById('summaryBlock').classList.remove('hidden');document.getElementById('summaryText').textContent=d.summary;}
+  });
+}
+function generateSummary(){
+  const btn=document.getElementById('genBtn');btn.disabled=true;
+  btn.innerHTML='<span class="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>GENERATING...';
+  fetch('/api/generate_summary',{method:'POST'})
+    .then(r=>r.json())
+    .then(d=>{
+      document.getElementById('summaryBlock').classList.remove('hidden');
+      document.getElementById('summaryText').textContent=d.summary||'No summary available. Run simulation first from Live Feed.';
+      btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined text-[20px]" style="font-variation-settings:\'FILL\' 1">auto_awesome</span>GENERATE AI SUMMARY';
+    })
+    .catch(err=>{
+      document.getElementById('summaryBlock').classList.remove('hidden');
+      document.getElementById('summaryText').textContent='Error: '+err.message+'. Make sure simulation has been run first.';
+      btn.disabled=false;btn.innerHTML='<span class="material-symbols-outlined text-[20px]" style="font-variation-settings:\'FILL\' 1">auto_awesome</span>GENERATE AI SUMMARY';
+    });
+}
+loadData();setInterval(loadData,5000);
+</script>
+</body></html>

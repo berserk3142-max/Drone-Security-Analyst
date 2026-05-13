@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aegis Drone Command - Query Frames</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Arimo:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-tint":"#c6c6cb","on-surface-variant":"#c6c6cb","surface-dim":"#101418","surface-container-highest":"#32353a","surface-container-high":"#272a2f","surface-container-lowest":"#0b0e13","surface-container":"#1d2024","on-error-container":"#ffdad6","on-surface":"#e0e2e8",primary:"#c6c6cb","secondary-fixed":"#72ff70","on-tertiary-container":"#ff5d53","on-primary-container":"#939499",surface:"#101418",tertiary:"#ffb4ab",error:"#ffb4ab",outline:"#909095","error-container":"#93000a",background:"#101418","primary-container":"#2b2d31","outline-variant":"#45474a","primary-fixed-dim":"#c6c6cb","tertiary-fixed-dim":"#ffb4ab","on-background":"#e0e2e8","surface-container-low":"#191c20","on-secondary-container":"#007117","surface-bright":"#36393e","secondary-fixed-dim":"#00e639","on-error":"#690005","surface-variant":"#32353a"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"gutter-md":"1.5rem","panel-padding":"2rem","component-gap":"1rem"},fontFamily:{"body-md":["Arimo"],"display-code":["JetBrains Mono"],"headline-lg":["Anton"],"label-caps":["JetBrains Mono"],"headline-md":["Anton"]},fontSize:{"body-md":["16px",{lineHeight:"1.5",fontWeight:"400"}],"display-code":["20px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"500"}],"headline-lg":["48px",{lineHeight:"1.1",letterSpacing:"0.05em",fontWeight:"400"}],"label-caps":["14px",{lineHeight:"1.2",fontWeight:"700"}],"headline-md":["32px",{lineHeight:"1.2",fontWeight:"400"}]}}}};</script>
+<style>::-webkit-scrollbar{width:10px;background:#101418}::-webkit-scrollbar-thumb{background:#32353a;border:1px solid #45474a;border-radius:2px}</style>
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-hidden h-screen">
+<script src="/static/shell.js"></script>
+
+<main class="ml-60 mt-16 h-[calc(100vh-4rem)] p-panel-padding overflow-y-auto bg-background relative z-0">
+<header class="mb-6 flex justify-between items-end border-b-2 border-surface-dim pb-4">
+<div><h1 class="font-headline-lg text-[28px] text-primary uppercase tracking-wide">Tactical Frame Interrogation</h1>
+<p class="font-display-code text-outline mt-1 text-[13px]">SYS.OP.MODE // DEEP_SCAN_ACTIVE</p></div>
+<div class="flex items-center gap-2 bg-surface-container-lowest border border-surface-dim p-2 rounded shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]">
+<div class="w-2 h-2 rounded-full bg-secondary-fixed-dim shadow-[0_0_8px_#00e639] animate-pulse"></div>
+<span class="font-label-caps text-[11px] text-secondary-fixed-dim">DATA LINK STABLE</span>
+</div>
+</header>
+<div class="grid lg:grid-cols-12 gap-6">
+<!-- Left Panel -->
+<div class="lg:col-span-4 flex flex-col gap-5">
+<!-- Query Input -->
+<section class="bg-surface-container border border-surface-dim rounded-lg p-5 relative shadow-[0_8px_16px_rgba(0,0,0,0.6),inset_0_2px_0_rgba(255,255,255,0.05)]">
+<div class="absolute w-2 h-2 rounded-full bg-surface-dim shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] top-3 left-3"></div>
+<div class="absolute w-2 h-2 rounded-full bg-surface-dim shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] top-3 right-3"></div>
+<h3 class="font-label-caps text-[12px] text-outline mb-3 flex items-center gap-2 border-b border-surface-dim pb-2"><span class="material-symbols-outlined text-[16px]">search</span> PARAMETER INPUT</h3>
+<div class="space-y-4">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-caps text-[11px] text-primary-fixed-dim">Entity Designation</label>
+<div class="relative"><input id="searchInput" class="w-full bg-surface-container-lowest text-secondary-fixed-dim font-display-code p-2.5 border-t-2 border-l-2 border-black border-b border-r border-white/10 rounded outline-none focus:shadow-[inset_0_0_15px_rgba(0,230,57,0.15)] text-[14px]" type="text" placeholder="e.g. truck, person"/><span class="absolute right-3 top-2.5 material-symbols-outlined text-outline text-[18px]">qr_code_scanner</span></div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-caps text-[11px] text-primary-fixed-dim">Risk Level</label>
+<div class="relative bg-surface-container-lowest border-t-2 border-l-2 border-black border-b border-r border-white/10 rounded">
+<select id="riskFilter" class="w-full bg-transparent text-on-surface font-display-code p-2.5 outline-none appearance-none cursor-pointer text-[13px]"><option value="">ALL LEVELS</option><option value="CRITICAL">CRITICAL</option><option value="HIGH">HIGH</option><option value="MEDIUM">MEDIUM</option><option value="LOW">LOW</option></select>
+<span class="absolute right-2 top-2.5 material-symbols-outlined text-outline pointer-events-none text-[16px]">arrow_drop_down</span></div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-caps text-[11px] text-primary-fixed-dim">Timeframe</label>
+<div class="relative bg-surface-container-lowest border-t-2 border-l-2 border-black border-b border-r border-white/10 rounded">
+<select id="timeFilter" class="w-full bg-transparent text-on-surface font-display-code p-2.5 outline-none appearance-none cursor-pointer text-[13px]"><option value="any">ALL TIME</option><option value="after_hours">AFTER HRS</option><option value="business">BUSINESS</option></select>
+<span class="absolute right-2 top-2.5 material-symbols-outlined text-outline pointer-events-none text-[16px]">arrow_drop_down</span></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Threat Filter -->
+<section class="bg-surface-container border border-surface-dim rounded-lg p-5 relative shadow-[0_8px_16px_rgba(0,0,0,0.6),inset_0_2px_0_rgba(255,255,255,0.05)]">
+<h3 class="font-label-caps text-[12px] text-outline mb-3 flex items-center gap-2 border-b border-surface-dim pb-2"><span class="material-symbols-outlined text-[16px]">policy</span> THREAT FILTER</h3>
+<div class="flex flex-col gap-3 bg-surface-dim p-3 rounded border border-surface shadow-[inset_0_4px_8px_rgba(0,0,0,0.8)]">
+<button onclick="setFilter('CRITICAL')" data-level="CRITICAL" class="threat-filter-btn relative w-full bg-surface-container-high text-on-surface font-label-caps text-[12px] px-3 py-2.5 border-t border-l border-white/10 border-b-2 border-r-2 border-black shadow-[0_3px_0_#0b0e13] active:translate-y-[3px] active:shadow-none transition-all flex items-center justify-between">
+<div class="flex items-center gap-2"><div class="filter-led w-3 h-3 rounded-full bg-on-tertiary-container shadow-[0_0_8px_#ff5d53] border border-black/50" style="opacity:0.5"></div><span class="filter-label text-outline">CRITICAL</span></div>
+<span class="filter-status font-display-code text-outline text-[12px]">OFF</span></button>
+<button onclick="setFilter('HIGH')" data-level="HIGH" class="threat-filter-btn relative w-full bg-surface-container-high font-label-caps text-[12px] px-3 py-2.5 border-t border-l border-white/10 border-b-2 border-r-2 border-black shadow-[0_3px_0_#0b0e13] active:translate-y-[3px] active:shadow-none transition-all flex items-center justify-between">
+<div class="flex items-center gap-2"><div class="filter-led w-3 h-3 rounded-full bg-error shadow-[0_0_6px_#ffb4ab] border border-black/50" style="opacity:0.5"></div><span class="filter-label text-outline">ELEVATED</span></div>
+<span class="filter-status font-display-code text-outline text-[12px]">OFF</span></button>
+<button onclick="setFilter('LOW')" data-level="LOW" class="threat-filter-btn relative w-full bg-surface-container-high font-label-caps text-[12px] px-3 py-2.5 border-t border-l border-white/10 border-b-2 border-r-2 border-black shadow-[0_3px_0_#0b0e13] active:translate-y-[3px] active:shadow-none transition-all flex items-center justify-between">
+<div class="flex items-center gap-2"><div class="filter-led w-3 h-3 rounded-full bg-secondary-fixed-dim shadow-[0_0_6px_#00e639] border border-black/50" style="opacity:0.5"></div><span class="filter-label text-outline">NOMINAL</span></div>
+<span class="filter-status font-display-code text-outline text-[12px]">OFF</span></button>
+</div>
+</section>
+<!-- Semantic Search -->
+<section class="bg-surface-container border border-surface-dim rounded-lg p-5 relative shadow-[0_8px_16px_rgba(0,0,0,0.6),inset_0_2px_0_rgba(255,255,255,0.05)]">
+<div class="bg-surface-dim p-3 rounded border-2 border-surface-container-highest shadow-[inset_0_4px_12px_rgba(0,0,0,0.9)] flex flex-col items-center justify-center min-h-[100px] relative overflow-hidden">
+<div class="absolute inset-0 pointer-events-none opacity-20" style="background-image:repeating-linear-gradient(0deg,transparent,transparent 2px,#000 2px,#000 4px)"></div>
+<span class="material-symbols-outlined text-secondary-fixed-dim text-[32px] mb-1 drop-shadow-[0_0_10px_rgba(0,230,57,0.5)] animate-pulse">neurology</span>
+<p class="font-display-code text-secondary-fixed-dim text-center text-[12px] leading-tight">NEURAL SEMANTIC<br/>MATCHING ENGAGED</p>
+</div>
+<input id="semanticInput" class="w-full mt-3 bg-surface-container-lowest text-secondary-fixed-dim font-display-code p-2.5 border-t-2 border-l-2 border-black border-b border-r border-white/10 rounded outline-none text-[13px]" type="text" placeholder="Describe what you're looking for..."/>
+<button onclick="executeQuery()" class="w-full mt-3 bg-primary-container text-on-surface font-headline-md py-3 rounded border-b-4 border-r-4 border-black shadow-[0_4px_0_#0b0e13] active:translate-y-[4px] active:shadow-none transition-all flex items-center justify-center gap-2 text-[16px]">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings:'FILL' 1">manage_search</span>EXECUTE QUERY</button>
+</section>
+</div>
+<!-- Right Panel: CRT Viewport -->
+<div class="lg:col-span-8 flex flex-col">
+<div class="bg-surface-container-lowest border-4 border-surface rounded-xl p-2 relative shadow-[0_10px_30px_rgba(0,0,0,0.8)] flex flex-col" style="min-height:600px">
+<div class="flex justify-between items-center bg-surface-dim px-3 py-1.5 border-b border-surface-container z-10">
+<span class="font-display-code text-secondary-fixed-dim text-[12px]">VDP-OUT // CH-01</span>
+<div class="flex gap-2 items-center"><span class="w-2 h-2 rounded-full bg-secondary-fixed-dim animate-pulse"></span><span class="font-display-code text-outline text-[12px]" id="resultCount">0 MATCHES</span></div>
+</div>
+<div class="relative flex-1 bg-[#05080a] overflow-hidden">
+<div class="absolute inset-0 pointer-events-none z-10 opacity-40" style="background-image:repeating-linear-gradient(0deg,transparent,transparent 1px,#000 1px,#000 2px)"></div>
+<div class="absolute inset-0 pointer-events-none z-10 shadow-[inset_0_0_80px_rgba(0,0,0,1)]"></div>
+<div id="resultsGrid" class="absolute inset-0 overflow-y-auto p-4 z-0 space-y-3">
+<div class="text-center font-display-code text-outline py-12 text-[14px]">Enter search parameters and execute query</div>
+</div>
+</div>
+<div class="bg-surface border-t border-surface-container h-5 w-full rounded-b flex items-center justify-center gap-8">
+<div class="w-12 h-1 bg-surface-dim rounded"></div><div class="w-12 h-1 bg-surface-dim rounded"></div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')executeQuery()});
+document.getElementById('semanticInput').addEventListener('keydown',e=>{if(e.key==='Enter')executeQuery()});
+
+let activeFilter='';
+const filterBtns = document.querySelectorAll('[onclick^="setFilter"]');
+
+function setFilter(level){
+  activeFilter = activeFilter===level ? '' : level;
+  document.getElementById('riskFilter').value = activeFilter;
+  // Update filter button visuals
+  document.querySelectorAll('.threat-filter-btn').forEach(btn => {
+    const btnLevel = btn.getAttribute('data-level');
+    const led = btn.querySelector('.filter-led');
+    const label = btn.querySelector('.filter-label');
+    const status = btn.querySelector('.filter-status');
+    if(btnLevel === activeFilter) {
+      led.style.opacity = '1';
+      label.className = 'filter-label text-on-surface';
+      status.textContent = 'ON';
+      status.className = 'filter-status font-display-code text-secondary-fixed-dim text-[12px]';
+    } else {
+      led.style.opacity = '0.5';
+      label.className = 'filter-label text-outline';
+      status.textContent = 'OFF';
+      status.className = 'filter-status font-display-code text-outline text-[12px]';
+    }
+  });
+  executeQuery();
+}
+
+function executeQuery(){
+  const paramQ = document.getElementById('searchInput').value.trim();
+  const semanticQ = document.getElementById('semanticInput').value.trim();
+  const risk = document.getElementById('riskFilter').value;
+  const time = document.getElementById('timeFilter').value;
+
+  document.getElementById('resultsGrid').innerHTML='<div class="text-center font-display-code text-secondary-fixed-dim py-12 text-[14px] animate-pulse">SCANNING DATABASE...</div>';
+  document.getElementById('resultCount').textContent='SEARCHING...';
+
+  // Decide which API to use
+  if(semanticQ && !paramQ) {
+    // Semantic search via ChromaDB
+    fetch('/api/semantic?q='+encodeURIComponent(semanticQ))
+      .then(r=>r.json())
+      .then(d=>{
+        let results = d.results||[];
+        // Apply client-side risk filter to semantic results
+        if(risk) results = results.filter(r=>(r.risk_level||'').toUpperCase()===risk);
+        renderResults(results, 'SEMANTIC');
+      })
+      .catch(()=>{
+        // Fallback: try in-memory
+        fetchInMemory(semanticQ, risk, time);
+      });
+  } else {
+    // Parameter search via SQLite + in-memory fallback
+    fetch(`/api/frames/search?q=${encodeURIComponent(paramQ)}&risk=${encodeURIComponent(risk)}&time_filter=${encodeURIComponent(time)}`)
+      .then(r=>r.json())
+      .then(d=>{
+        let results = d.results||[];
+        if(results.length > 0) {
+          renderResults(results, 'DB');
+        } else {
+          // Fallback to in-memory results
+          fetchInMemory(paramQ, risk, time);
+        }
+      })
+      .catch(()=>{
+        fetchInMemory(paramQ, risk, time);
+      });
+  }
+}
+
+function fetchInMemory(q, risk, time){
+  fetch('/api/status').then(r=>r.json()).then(data=>{
+    let results=data.results||[];
+    if(q) results=results.filter(f=>(f.objects||[]).some(o=>o.toLowerCase().includes(q.toLowerCase()))||(f.description||'').toLowerCase().includes(q.toLowerCase()));
+    if(risk) results=results.filter(f=>(f.risk_level||'').toUpperCase()===risk);
+    if(time==='after_hours') results=results.filter(f=>{const h=parseInt((f.time||'12').split(':')[0]);return h>=22||h<6});
+    else if(time==='business') results=results.filter(f=>{const h=parseInt((f.time||'12').split(':')[0]);return h>=6&&h<22});
+    renderResults(results, 'MEMORY');
+  });
+}
+
+function renderResults(results, source){
+  document.getElementById('resultCount').textContent=results.length+' MATCHES';
+  if(!results.length){
+    document.getElementById('resultsGrid').innerHTML=`<div class="text-center font-display-code text-outline py-12 text-[14px]">
+      <span class="material-symbols-outlined text-[32px] block mb-2 text-outline/50">search_off</span>
+      No matches found.<br/><span class="text-[12px] text-surface-variant mt-1 block">Run simulation from Live Feed first, then query.</span></div>`;
+    return;
+  }
+  const rc={CRITICAL:'error',HIGH:'tertiary-fixed-dim',MEDIUM:'primary',LOW:'surface-tint'};
+  const srcBadge = `<span class="font-label-caps text-[9px] text-secondary-fixed-dim bg-surface-container-lowest px-1 py-0.5 rounded border border-secondary-fixed-dim/20">${source}</span>`;
+  document.getElementById('resultsGrid').innerHTML=results.map(f=>{
+    const r=(f.risk_level||'LOW').toUpperCase();
+    const fid = f.frame_id || f.id || '?';
+    const objs = f.objects || [];
+    return `<div class="bg-surface-dim border-l-4 border-${rc[r]||'surface-tint'} p-3 hover:bg-surface-container transition-colors cursor-pointer">
+      <div class="flex justify-between items-start mb-1"><div class="flex items-center gap-2">
+        <span class="font-display-code text-[13px] text-${rc[r]}">FRM-${fid}</span>
+        <span class="font-label-caps text-[10px] text-surface-tint bg-surface-container px-1.5 py-0.5 rounded border border-surface-variant">${f.location||f.sector||''}</span>
+        <span class="font-label-caps text-[10px] text-on-surface bg-surface-variant px-1.5 py-0.5 rounded">${r}</span>
+        ${srcBadge}
+      </div><span class="font-display-code text-[11px] text-outline">${f.time||f.timestamp||''}</span></div>
+      <p class="font-display-code text-on-surface-variant text-[12px]">${f.description||''}</p>
+      <div class="mt-1.5 flex gap-1.5 flex-wrap">${objs.map(o=>`<span class="font-label-caps text-[10px] bg-surface-container-highest text-secondary-fixed-dim px-1.5 py-0.5 rounded border border-secondary-fixed-dim/30">${o}</span>`).join('')}</div></div>`;
+  }).join('');
+}
+</script>
+</body></html>

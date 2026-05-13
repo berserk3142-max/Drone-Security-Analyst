@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Aegis Drone Command - Video Analysis</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Arimo:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-tint":"#c6c6cb","on-surface-variant":"#c6c6cb","surface-dim":"#101418","surface-container-highest":"#32353a","surface-container-high":"#272a2f","surface-container-lowest":"#0b0e13","surface-container":"#1d2024","on-error-container":"#ffdad6","on-surface":"#e0e2e8",primary:"#c6c6cb","secondary-fixed":"#72ff70","on-tertiary-container":"#ff5d53","on-primary-container":"#939499",surface:"#101418",tertiary:"#ffb4ab",error:"#ffb4ab",outline:"#909095","error-container":"#93000a",background:"#101418","primary-container":"#2b2d31","outline-variant":"#45474a","primary-fixed-dim":"#c6c6cb","tertiary-fixed-dim":"#ffb4ab","on-background":"#e0e2e8","surface-container-low":"#191c20","on-secondary-container":"#007117","surface-bright":"#36393e","secondary-fixed-dim":"#00e639","on-error":"#690005","surface-variant":"#32353a"},borderRadius:{DEFAULT:"0.125rem",lg:"0.25rem",xl:"0.5rem",full:"0.75rem"},spacing:{"gutter-md":"1.5rem","panel-padding":"2rem","component-gap":"1rem"},fontFamily:{"body-md":["Arimo"],"display-code":["JetBrains Mono"],"headline-lg":["Anton"],"label-caps":["JetBrains Mono"],"headline-md":["Anton"]},fontSize:{"body-md":["16px",{lineHeight:"1.5",fontWeight:"400"}],"display-code":["20px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"500"}],"headline-lg":["48px",{lineHeight:"1.1",letterSpacing:"0.05em",fontWeight:"400"}],"label-caps":["14px",{lineHeight:"1.2",fontWeight:"700"}],"headline-md":["32px",{lineHeight:"1.2",fontWeight:"400"}]}}}};</script>
+<style>.scanlines{background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,.2) 50%,rgba(0,0,0,.2));background-size:100% 4px}
+.screw{width:7px;height:7px;border-radius:50%;background:#45474a;box-shadow:inset 1px 1px 2px rgba(0,0,0,.8),inset -1px -1px 2px rgba(255,255,255,.2);position:absolute}
+.screw::after{content:'';width:5px;height:1px;background:#101418;transform:rotate(45deg);display:block;position:absolute;top:3px;left:1px}</style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen overflow-x-hidden">
+<script src="/static/shell.js"></script>
+
+<main class="ml-60 mt-16 p-panel-padding overflow-y-auto h-[calc(100vh-4rem)]">
+<div class="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- Monitor -->
+<section class="lg:col-span-8 flex flex-col gap-3">
+<div class="font-label-caps text-[11px] text-outline tracking-widest uppercase flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary-fixed-dim animate-pulse shadow-[0_0_6px_#00e639]"></span>Unit 07 : Sensor Input</div>
+<div class="relative bg-surface-container-highest p-3 rounded-xl border-2 border-surface-dim shadow-[0_10px_30px_rgba(0,0,0,0.8)]">
+<div class="screw top-2 left-2"></div><div class="screw top-2 right-2"></div><div class="screw bottom-2 left-2"></div><div class="screw bottom-2 right-2"></div>
+<div id="screenArea" class="bg-surface-dim p-3 rounded-lg border-2 border-surface shadow-[inset_0_4px_10px_rgba(0,0,0,1)] relative overflow-hidden h-[420px] flex flex-col items-center justify-center cursor-pointer" ondrop="handleDrop(event)" ondragover="event.preventDefault()" onclick="document.getElementById('videoInput').click()">
+<div class="absolute inset-0 bg-surface-container-lowest"></div>
+<div class="absolute inset-0 scanlines pointer-events-none opacity-50"></div>
+<div id="uploadZone" class="z-10 flex flex-col items-center gap-4 text-center">
+<div class="w-16 h-16 rounded-full border-2 border-dashed border-outline-variant flex items-center justify-center bg-surface-container/50 hover:border-secondary-fixed-dim transition-all">
+<span class="material-symbols-outlined text-[28px] text-outline-variant">upload_file</span></div>
+<div><p class="font-display-code text-on-surface text-[14px] mb-1">DRAG & DROP VIDEO SOURCE</p>
+<p class="font-label-caps text-[11px] text-outline">Supported: .MP4, .MKV, .AVI</p></div>
+</div>
+<video id="videoPlayer" class="absolute inset-0 w-full h-full object-contain z-10 hidden" controls></video>
+<div class="absolute bottom-3 left-3 font-display-code text-[11px] text-secondary-fixed-dim opacity-70 z-20">REC [WAITING]<br/>CH-01</div>
+</div>
+<input type="file" id="videoInput" accept="video/*" class="hidden" onchange="loadVideo(this)"/>
+</div>
+</section>
+
+<!-- Controls -->
+<section class="lg:col-span-4 flex flex-col gap-3">
+<div class="font-label-caps text-[11px] text-outline tracking-widest uppercase">Calibration Parameters</div>
+<div class="bg-surface-container-high rounded-xl border-2 border-surface-dim shadow-[0_8px_20px_rgba(0,0,0,0.6)] p-5 relative flex flex-col gap-4 flex-1">
+<div class="screw top-2 left-2"></div><div class="screw top-2 right-2"></div>
+<!-- Confidence -->
+<div class="flex items-center justify-between bg-surface-container p-3 rounded border border-surface-dim shadow-inner">
+<span class="font-label-caps text-[11px] text-outline">DETECTION CONFIDENCE</span>
+<div class="flex items-center gap-2">
+<input type="range" min="10" max="100" value="85" id="confSlider" class="w-20 accent-green-500 h-1" oninput="document.getElementById('confVal').textContent=this.value+'%'"/>
+<span id="confVal" class="font-display-code text-[13px] text-secondary-fixed-dim w-10 text-right">85%</span>
+</div>
+</div>
+<!-- Toggle thermal -->
+<div class="flex items-center justify-between bg-surface-container p-3 rounded border border-surface-dim shadow-inner">
+<div class="flex items-center gap-2">
+<div id="thermalLed" class="w-2.5 h-2.5 rounded-full bg-secondary-fixed shadow-[0_0_6px_#72ff70] border border-[#002203]"></div>
+<span class="font-display-code text-[13px] text-on-surface">THERMAL OVERLAY</span>
+</div>
+<button onclick="toggleThermal()" class="w-10 h-6 bg-surface-dim rounded border border-surface shadow-inner relative cursor-pointer">
+<div id="thermalKnob" class="absolute top-0.5 left-1/2 -translate-x-1/2 w-6 h-3 bg-gradient-to-b from-surface-tint to-surface-variant rounded shadow-[0_1px_3px_rgba(0,0,0,0.8)] transition-all"></div>
+</button>
+</div>
+<!-- Toggle tracking -->
+<div class="flex items-center justify-between bg-surface-container p-3 rounded border border-surface-dim shadow-inner">
+<div class="flex items-center gap-2">
+<div id="trackLed" class="w-2.5 h-2.5 rounded-full bg-surface-dim shadow-inner border border-surface"></div>
+<span class="font-display-code text-[13px] text-outline-variant">OBJECT TRACKING</span>
+</div>
+<button onclick="toggleTracking()" class="w-10 h-6 bg-surface-dim rounded border border-surface shadow-inner relative cursor-pointer">
+<div id="trackKnob" class="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-3 bg-gradient-to-b from-surface-variant to-surface rounded shadow-[0_-1px_3px_rgba(0,0,0,0.8)] transition-all"></div>
+</button>
+</div>
+<!-- Action -->
+<div class="mt-auto pt-3">
+<button id="analysisBtn" onclick="initAnalysis()" class="w-full relative group h-16 bg-surface-dim rounded-lg border-2 border-surface-dim shadow-[inset_0_4px_10px_rgba(0,0,0,0.8)] p-1.5">
+<div class="w-full h-full bg-gradient-to-b from-surface-variant to-surface rounded flex items-center justify-center border border-[#45474a] shadow-[0_4px_0_#101418] group-active:translate-y-1 group-active:shadow-none transition-all duration-75">
+<span class="font-headline-md text-[16px] tracking-wider text-on-surface group-active:text-secondary-fixed-dim transition-colors uppercase">Initialize Analysis</span>
+</div></button>
+</div>
+</div>
+</section>
+
+<!-- Log table -->
+<section class="lg:col-span-12">
+<div class="font-headline-md text-on-surface-variant mb-3 flex items-center gap-3 text-[18px]">OPERATIONAL LOG<div class="h-[2px] flex-grow bg-gradient-to-r from-surface-dim to-transparent"></div></div>
+<div class="bg-surface-container-lowest border border-surface-dim p-1 font-display-code text-[12px] shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]">
+<div class="grid grid-cols-12 gap-3 text-outline-variant p-2.5 border-b border-surface-dim text-[11px] bg-surface-container">
+<div class="col-span-2">TIMESTAMP</div><div class="col-span-3">SOURCE ID</div><div class="col-span-2">STATUS</div><div class="col-span-4">DETECTION SUMMARY</div><div class="col-span-1 text-right">ACT</div>
+</div>
+<div id="logEntries" class="flex flex-col">
+<div class="grid grid-cols-12 gap-3 p-2.5 border-b border-surface/50 text-on-surface hover:bg-surface transition-colors">
+<div class="col-span-2 text-outline">--:--:--.---</div><div class="col-span-3 text-outline">AWAITING_INPUT</div>
+<div class="col-span-2 flex items-center gap-1.5 text-outline"><span class="w-1.5 h-1.5 bg-outline rounded-full"></span>STANDBY</div>
+<div class="col-span-4 text-outline opacity-60">Upload video to begin</div>
+<div class="col-span-1 text-right"><span class="material-symbols-outlined text-[16px] text-outline">visibility</span></div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+
+<script>
+let thermalOn=true, trackingOn=false, uploadedFile=null, analyzing=false;
+
+function toggleThermal(){
+  thermalOn=!thermalOn;
+  document.getElementById('thermalLed').className = thermalOn
+    ? 'w-2.5 h-2.5 rounded-full bg-secondary-fixed shadow-[0_0_6px_#72ff70] border border-[#002203]'
+    : 'w-2.5 h-2.5 rounded-full bg-surface-dim shadow-inner border border-surface';
+}
+
+function toggleTracking(){
+  trackingOn=!trackingOn;
+  document.getElementById('trackLed').className = trackingOn
+    ? 'w-2.5 h-2.5 rounded-full bg-secondary-fixed shadow-[0_0_6px_#72ff70] border border-[#002203]'
+    : 'w-2.5 h-2.5 rounded-full bg-surface-dim shadow-inner border border-surface';
+}
+
+function loadVideo(input){
+  if(input.files && input.files[0]){
+    uploadedFile = input.files[0];
+    const url = URL.createObjectURL(uploadedFile);
+    document.getElementById('videoPlayer').src = url;
+    document.getElementById('videoPlayer').classList.remove('hidden');
+    document.getElementById('uploadZone').classList.add('hidden');
+    addLogEntry(new Date().toLocaleTimeString(), 'LOCAL_FILE', 'LOADED',
+      'Video: ' + uploadedFile.name + ' (' + (uploadedFile.size/1024/1024).toFixed(1) + ' MB)', 'secondary-fixed');
+  }
+}
+
+function handleDrop(e){
+  e.preventDefault();
+  const f = e.dataTransfer.files;
+  if(f.length){
+    document.getElementById('videoInput').files = f;
+    loadVideo(document.getElementById('videoInput'));
+  }
+}
+
+function initAnalysis(){
+  if(analyzing) return;
+  if(!uploadedFile){
+    addLogEntry(new Date().toLocaleTimeString(), 'AEGIS_CORE', 'ERROR', 'No video loaded. Upload a video first.', 'error');
+    return;
+  }
+
+  analyzing = true;
+  const btnText = document.querySelector('#analysisBtn span');
+  if(btnText) btnText.textContent = 'ANALYZING...';
+
+  addLogEntry(new Date().toLocaleTimeString(), 'AEGIS_CORE', 'INIT', 'Uploading video for AI analysis...', 'secondary-fixed-dim');
+
+  // Upload via fetch, then read SSE from the response
+  const formData = new FormData();
+  formData.append('file', uploadedFile);
+
+  fetch('/api/analyze_video', { method: 'POST', body: formData })
+    .then(response => {
+      if(!response.ok) throw new Error('Upload failed: ' + response.status);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let frameCount = 0;
+
+      function processChunk(){
+        reader.read().then(({done, value}) => {
+          if(done){
+            analyzing = false;
+            if(btnText) btnText.textContent = 'INITIALIZE ANALYSIS';
+            addLogEntry(new Date().toLocaleTimeString(), 'AEGIS_CORE', 'COMPLETE',
+              `Analysis finished. ${frameCount} frames processed.`, 'secondary-fixed');
+            return;
+          }
+
+          buffer += decoder.decode(value, {stream: true});
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // keep incomplete line
+
+          let eventType = '', eventData = '';
+          for(const line of lines){
+            if(line.startsWith('event: ')) eventType = line.slice(7).trim();
+            else if(line.startsWith('data: ')){
+              eventData = line.slice(6).trim();
+              try {
+                const d = JSON.parse(eventData);
+                if(eventType === 'status'){
+                  addLogEntry(new Date().toLocaleTimeString(), 'AEGIS_CORE', 'STATUS', d.message, 'primary');
+                } else if(eventType === 'frame'){
+                  frameCount++;
+                  const risk = (d.risk_level||'LOW').toUpperCase();
+                  const color = risk==='CRITICAL' ? 'error' : risk==='HIGH' ? 'tertiary' : risk==='MEDIUM' ? 'primary' : 'secondary-fixed-dim';
+                  addLogEntry(
+                    d.time || new Date().toLocaleTimeString(),
+                    `FRM-${String(d.frame_id).padStart(3,'0')}`,
+                    risk,
+                    `[${d.location}] ${d.description}`,
+                    color
+                  );
+                  // Show merged objects (YOLO + VLM)
+                  if(d.objects && d.objects.length > 0){
+                    addLogEntry('', '', 'OBJECTS', d.objects.join(', '), 'secondary-fixed-dim');
+                  }
+                  // Show YOLO detection counts with confidence
+                  if(d.yolo_detections && d.yolo_detections.length > 0){
+                    const detSummary = d.yolo_detections.map(det =>
+                      `${det.label} (${Math.round(det.confidence*100)}%)`
+                    ).join(', ');
+                    addLogEntry('', '', 'YOLO', `Detected: ${detSummary}`, 'secondary-fixed');
+                  }
+                  if(d.detection_counts && Object.keys(d.detection_counts).length > 0){
+                    const countSummary = Object.entries(d.detection_counts).map(([k,v]) =>
+                      `${v}x ${k}`
+                    ).join(', ');
+                    addLogEntry('', '', 'COUNT', countSummary, 'primary');
+                  }
+                  if(d.recommended_action){
+                    addLogEntry('', '', 'ACTION', d.recommended_action, risk==='CRITICAL'||risk==='HIGH' ? 'error' : 'outline');
+                  }
+                } else if(eventType === 'complete'){
+                  addLogEntry(new Date().toLocaleTimeString(), 'AEGIS_CORE', 'DONE', d.message, 'secondary-fixed');
+                } else if(eventType === 'error'){
+                  addLogEntry(new Date().toLocaleTimeString(), 'AEGIS_CORE', 'ERROR', d.message, 'error');
+                }
+              } catch(e){}
+              eventType = '';
+            }
+          }
+          processChunk();
+        });
+      }
+      processChunk();
+    })
+    .catch(err => {
+      analyzing = false;
+      if(btnText) btnText.textContent = 'INITIALIZE ANALYSIS';
+      addLogEntry(new Date().toLocaleTimeString(), 'AEGIS_CORE', 'ERROR', err.message, 'error');
+    });
+}
+
+function addLogEntry(time, src, status, summary, color){
+  const row = document.createElement('div');
+  row.className = 'grid grid-cols-12 gap-3 p-2.5 border-b border-surface/50 text-on-surface hover:bg-surface transition-colors text-[12px]';
+  row.innerHTML = `<div class="col-span-2">${time}</div>
+    <div class="col-span-3">${src}</div>
+    <div class="col-span-2 flex items-center gap-1.5">
+      <span class="w-1.5 h-1.5 bg-${color||'secondary-fixed'} rounded-full shadow-[0_0_4px_currentColor]"></span>${status}</div>
+    <div class="col-span-4 truncate opacity-80">${summary}</div>
+    <div class="col-span-1 text-right">
+      <span class="material-symbols-outlined text-[16px] cursor-pointer hover:text-on-surface">visibility</span></div>`;
+  document.getElementById('logEntries').prepend(row);
+}
+</script>
+</body></html>
