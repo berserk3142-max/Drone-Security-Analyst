@@ -3,23 +3,54 @@ ChromaDB Store — Semantic vector storage for drone surveillance frames.
 
 Enables natural language queries like "show me suspicious nighttime activity"
 by embedding frame descriptions and performing similarity search.
+
+Supports two modes:
+  - Cloud mode: Connects to Chroma Cloud (api.trychroma.com) when credentials are set
+  - Local mode: Falls back to local PersistentClient for offline/development use
 """
 
 import chromadb
 from chromadb.config import Settings
-from config import CHROMA_DB_PATH, CHROMA_COLLECTION_NAME, ensure_data_dir
+from config import (
+    CHROMA_DB_PATH, CHROMA_COLLECTION_NAME, ensure_data_dir,
+    CHROMA_CLOUD_ENABLED, CHROMA_HOST, CHROMA_API_KEY,
+    CHROMA_TENANT, CHROMA_DATABASE,
+)
 
 
 class ChromaStore:
     """ChromaDB-based semantic search for security frame descriptions."""
 
-    def __init__(self, db_path: str = None, collection_name: str = None):
+    def __init__(self, db_path: str = None, collection_name: str = None,
+                 use_cloud: bool = None):
+        """
+        Initialize ChromaDB client.
+
+        Args:
+            db_path: Local storage path (ignored in cloud mode)
+            collection_name: Name of the ChromaDB collection
+            use_cloud: Force cloud mode on/off. Defaults to auto-detect from env.
+        """
         self.db_path = db_path or CHROMA_DB_PATH
         self.collection_name = collection_name or CHROMA_COLLECTION_NAME
-        ensure_data_dir()
+        self.use_cloud = use_cloud if use_cloud is not None else CHROMA_CLOUD_ENABLED
 
-        # Initialize ChromaDB with persistent storage
-        self.client = chromadb.PersistentClient(path=self.db_path)
+        if self.use_cloud:
+            # Connect to Chroma Cloud
+            self.client = chromadb.HttpClient(
+                host=CHROMA_HOST,
+                port=443,
+                ssl=True,
+                headers={"x-chroma-token": CHROMA_API_KEY},
+                tenant=CHROMA_TENANT,
+                database=CHROMA_DATABASE,
+            )
+            print(f"[ChromaDB] Connected to cloud: {CHROMA_HOST} (db: {CHROMA_DATABASE})")
+        else:
+            # Fallback to local persistent storage
+            ensure_data_dir()
+            self.client = chromadb.PersistentClient(path=self.db_path)
+            print(f"[ChromaDB] Using local storage: {self.db_path}")
 
         # Get or create collection — uses ChromaDB's default embedding function
         self.collection = self.client.get_or_create_collection(
@@ -138,4 +169,4 @@ class ChromaStore:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass  # ChromaDB PersistentClient handles cleanup
+        pass  # ChromaDB clients handle cleanup automatically

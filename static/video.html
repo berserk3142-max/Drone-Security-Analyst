@@ -198,16 +198,16 @@ function initAnalysis(){
                     `[${d.location}] ${d.description}`,
                     color
                   );
-                  // Show merged objects (YOLO + VLM)
+                  // Show merged objects (Grounding DINO + VLM)
                   if(d.objects && d.objects.length > 0){
                     addLogEntry('', '', 'OBJECTS', d.objects.join(', '), 'secondary-fixed-dim');
                   }
-                  // Show YOLO detection counts with confidence
-                  if(d.yolo_detections && d.yolo_detections.length > 0){
-                    const detSummary = d.yolo_detections.map(det =>
+                  // Show Grounding DINO detection counts with confidence
+                  if(d.detections && d.detections.length > 0){
+                    const detSummary = d.detections.map(det =>
                       `${det.label} (${Math.round(det.confidence*100)}%)`
                     ).join(', ');
-                    addLogEntry('', '', 'YOLO', `Detected: ${detSummary}`, 'secondary-fixed');
+                    addLogEntry('', '', 'G-DINO', `Detected: ${detSummary}`, 'secondary-fixed');
                   }
                   if(d.detection_counts && Object.keys(d.detection_counts).length > 0){
                     const countSummary = Object.entries(d.detection_counts).map(([k,v]) =>

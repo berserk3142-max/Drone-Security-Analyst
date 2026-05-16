@@ -27,6 +27,13 @@ SQLITE_DB_PATH = os.path.join(os.path.dirname(__file__), "data", "security_event
 CHROMA_DB_PATH = os.path.join(os.path.dirname(__file__), "data", "chroma_db")
 CHROMA_COLLECTION_NAME = "drone_frames"
 
+# --- ChromaDB Cloud Configuration ---
+CHROMA_HOST = os.getenv("CHROMA_HOST", "")
+CHROMA_API_KEY = os.getenv("CHROMA_API_KEY", "")
+CHROMA_TENANT = os.getenv("CHROMA_TENANT", "")
+CHROMA_DATABASE = os.getenv("CHROMA_DATABASE", "")
+CHROMA_CLOUD_ENABLED = bool(CHROMA_HOST and CHROMA_API_KEY and CHROMA_TENANT and CHROMA_DATABASE)
+
 # --- Drone Configuration ---
 DRONE_ID = "DRN-01"
 PROPERTY_NAME = "SecureTech Industrial Complex"

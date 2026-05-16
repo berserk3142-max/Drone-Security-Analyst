@@ -1,6 +1,6 @@
 # 🛡️ Drone Security Analyst Agent
 
-An AI-powered autonomous drone surveillance system that monitors industrial properties 24/7, detects security threats in real-time, and generates searchable event history using **LangChain**, **OpenAI GPT-4o-mini**, **YOLOv8 + DeepSORT**, and dual-database indexing (**SQLite + ChromaDB**).
+An AI-powered autonomous drone surveillance system that monitors industrial properties 24/7, detects security threats in real-time, and generates searchable event history using **LangChain**, **OpenAI GPT-4o-mini**, **Grounding DINO + DeepSORT**, and dual-database indexing (**SQLite + ChromaDB Cloud**).
 
 > **Property:** SecureTech Industrial Complex · **Drone:** DRN-01 · **Mode:** Autonomous Patrol
 
@@ -41,9 +41,9 @@ An AI-powered autonomous drone surveillance system that monitors industrial prop
 │  └──────┬───────┘   └──────┬───────┘   └──────────┬───────────┘    │
 │         │                  │                       │                │
 │         │          ┌───────┴────────┐              │                │
-│         │          │  YOLOv8 +      │              │                │
+│         │          │  Grounding     │              │                │
+│         │          │  DINO +        │              │                │
 │         │          │  DeepSORT      │              │                │
-│         │          │  (Object Det.) │              │                │
 │         │          └───────┬────────┘              │                │
 │         │                  │                       │                │
 │         ▼                  ▼                       │                │
@@ -147,7 +147,7 @@ flowchart TD
 
 ### 2. Video Upload Analysis Pipeline (`server.py`)
 
-When a user uploads a real video through the web dashboard, it goes through a **dual-detection pipeline** combining YOLOv8 (precise bounding boxes) with GPT-4o-mini Vision (contextual understanding).
+When a user uploads a real video through the web dashboard, it goes through a **dual-detection pipeline** combining Grounding DINO (open-vocabulary detection with text prompts) with GPT-4o-mini Vision (contextual understanding).
 
 ```mermaid
 flowchart TD
@@ -157,8 +157,8 @@ flowchart TD
 
     C --> D{{"FOR EACH FRAME"}}
 
-    D --> E["🔍 Step 1: YOLO Detection\n(YOLOv8n + DeepSORT)"]
-    E --> E1["Detect bounding boxes\nfor 17 security-relevant\nCOCO classes"]
+    D --> E["🔍 Step 1: Grounding DINO\n(Open-Vocab + DeepSORT)"]
+    E --> E1["Detect objects via\ntext prompts — 28+\nsecurity-relevant classes"]
     E1 --> E2["Track objects across frames\nwith persistent IDs"]
     E2 --> E3["Output: objects list +\ndetections with confidence %"]
 
@@ -166,7 +166,7 @@ flowchart TD
     E3 --> F
     F --> F1["Send base64 frame image\nat HIGH detail resolution"]
     F1 --> F2["Enhanced prompt asks for:\n• ALL people (count + clothing)\n• ALL vehicles (type + color)\n• ALL animals + objects\n• Activities + concerns"]
-    F2 --> F3["YOLO results sent as hints\nfor cross-referencing"]
+    F2 --> F3["Grounding DINO results sent\nas hints for cross-referencing"]
     F3 --> F4["Output: 4-6 sentence\ndetailed description"]
 
     F4 --> G["🔬 Step 3: Security Analysis\n(GPT-4o-mini Text API)"]
@@ -175,11 +175,11 @@ flowchart TD
 
     G2 --> H["🔀 Step 4: Merge Results"]
     E3 --> H
-    H --> H1["Combine YOLO objects\n+ VLM objects\n(deduplicated)"]
+    H --> H1["Combine G-DINO objects\n+ VLM objects\n(deduplicated)"]
     H1 --> H2["Add detection counts\n+ confidence scores"]
 
     H2 --> I["📡 Stream via SSE\n(Server-Sent Events)"]
-    I --> J["Web Dashboard displays:\n• Objects detected\n• YOLO confidence %\n• Risk assessment\n• Recommended action"]
+    I --> J["Web Dashboard displays:\n• Objects detected\n• G-DINO confidence %\n• Risk assessment\n• Recommended action"]
 
     J --> K{"More frames?"}
     K -- "Yes" --> D
@@ -197,9 +197,9 @@ flowchart TD
 
 | Detection Method | Strengths | Weaknesses |
 |------------------|-----------|------------|
-| **YOLOv8** | Precise bounding boxes, real-time, exact object counts, confidence scores | Limited to 80 COCO classes, no contextual understanding |
+| **Grounding DINO** | Open-vocabulary (detect anything via text), bounding boxes, confidence scores, zero-shot — no retraining needed | Heavier than YOLO (~2-4s/frame on CPU), requires HuggingFace model download |
 | **GPT-4o-mini Vision** | Understands context, describes activities, identifies suspicious behavior | Can miss small objects, no bounding boxes, slower |
-| **Combined** | ✅ Best of both — precise counts AND contextual understanding | Slightly more API cost |
+| **Combined** | ✅ Best of both — open-vocabulary detection AND contextual understanding | Slightly more API cost |
 
 ---
 
@@ -291,12 +291,15 @@ If the API fails, a **fallback parser** uses keyword matching to extract basic a
 
 ### Object Detection (`detector.py`)
 
-The `VideoDetector` class uses **YOLOv8n** (nano model) with **DeepSORT** tracking:
+The `VideoDetector` class uses **Grounding DINO** (via HuggingFace Transformers) with **DeepSORT** tracking:
 
-- **17 security-relevant COCO classes** — person, car, truck, motorcycle, bus, bicycle, backpack, suitcase, laptop, cell phone, etc.
-- **Persistent tracking IDs** — same object keeps its ID across frames
-- **Color-coded bounding boxes** — orange for people, red for backpacks, cyan for cars
+- **Open-vocabulary detection** — detect any object by text prompt, no fixed class limit
+- **28+ security-focused classes** — person, car, truck, weapon, knife, gun, fire, smoke, drone, fence, gate, door, etc.
+- **Dynamic prompts** — change what you detect at runtime with `set_prompt()`
+- **Persistent tracking IDs** — same object keeps its ID across frames via DeepSORT
+- **Color-coded bounding boxes** — orange for people, red for weapons, magenta for drones
 - **Confidence threshold** — configurable (default 0.3 for video, 0.4 for live)
+- **Zero-shot** — no retraining needed to detect new object types
 
 ### Agent (`agent/`)
 
@@ -399,7 +402,7 @@ flowchart LR
 | **Query Type** | Keyword, time, location, exact match | Natural language, semantic similarity |
 | **Speed** | Very fast (indexed SQL) | Fast (vector ANN search) |
 | **Use Case** | "Show all trucks" / "Alerts after 10pm" | "Suspicious activity near fence at night" |
-| **Storage** | `data/security_events.db` | `data/chroma_db/` |
+| **Storage** | `data/security_events.db` | ChromaDB Cloud (or local `data/chroma_db/` fallback) |
 
 ---
 
@@ -410,7 +413,7 @@ The web dashboard (`server.py` + `static/`) provides a military-industrial comma
 | Page | File | Description |
 |------|------|-------------|
 | **Live Feed** | `index.html` | Real-time simulation with SSE streaming, metrics, frame log |
-| **Video Analysis** | `video.html` | Upload video → YOLO + Vision AI detection with operational log |
+| **Video Analysis** | `video.html` | Upload video → Grounding DINO + Vision AI detection with operational log |
 | **Alerts** | `alerts.html` | Alert dashboard with severity filtering |
 | **Query Frames** | `query.html` | Keyword + semantic search with filters |
 | **Daily Summary** | `summary.html` | AI-generated security briefing |
@@ -422,8 +425,11 @@ The web dashboard (`server.py` + `static/`) provides a military-industrial comma
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/` | Serve main dashboard |
+| `GET` | `/health` | Health check (keep-alive endpoint) |
 | `GET` | `/api/status` | Current simulation state |
 | `GET` | `/api/simulate` | **SSE** — Start patrol simulation, stream results |
+| `POST` | `/api/halt` | **Emergency halt** — stop running simulation immediately |
+| `POST` | `/api/reset` | Force-reset simulation state |
 | `GET` | `/api/alerts?severity=CRITICAL` | Get alerts, optional severity filter |
 | `GET` | `/api/frames` | Get all processed frames |
 | `GET` | `/api/frames/search?q=truck&risk=HIGH` | Search frames by keyword + risk |
@@ -493,7 +499,7 @@ Drone Security Analyst Agent/
 ├── main.py                    # CLI monitoring pipeline
 ├── query.py                   # CLI query interface (7 query types)
 ├── config.py                  # Central config (API keys, paths, constants)
-├── detector.py                # YOLOv8 + DeepSORT video object detector
+├── detector.py                # Grounding DINO + DeepSORT video object detector
 ├── requirements.txt           # Python dependencies
 ├── .env                       # API keys (gitignored)
 │
@@ -547,13 +553,14 @@ Drone Security Analyst Agent/
 |----------|--------|-----------|
 | LLM Backend | GPT-4o-mini | Fast inference, vision capability, good JSON output, cost-effective |
 | Agent Framework | LangGraph ReAct | Industry standard, tool-calling, memory management, reasoning loop |
-| Object Detection | YOLOv8n + DeepSORT | Real-time speed, persistent tracking IDs, 80 COCO classes |
+| Object Detection | Grounding DINO + DeepSORT | Open-vocabulary zero-shot detection, text-prompted, persistent tracking IDs |
 | Structured DB | SQLite | Zero-config, built into Python, fast keyword/time queries |
-| Vector DB | ChromaDB | Easy setup, built-in embeddings, semantic similarity search |
-| Dual Detection | YOLO + Vision API | Precise bounding boxes + contextual scene understanding |
+| Vector DB | ChromaDB Cloud | Managed cloud storage with local fallback, built-in embeddings |
+| Dual Detection | Grounding DINO + Vision API | Open-vocabulary bounding boxes + contextual scene understanding |
 | Web Framework | FastAPI + SSE | Async, real-time streaming, auto-generated API docs |
 | Console UX | Rich library | Professional colored output, tables, progress bars |
 | Memory | Last 20 messages | Cross-frame context for pattern recognition without token overflow |
+| Emergency Control | /api/halt + SSE events | Real-time simulation halt with proper UI state cleanup |
 
 ---
 
@@ -580,9 +587,9 @@ pytest tests/test_indexing.py -v
 
 - **OpenAI GPT-4o-mini** — Frame analysis (VLM) and agent reasoning
 - **LangChain + LangGraph** — Agent orchestration, tool management, ReAct loop
-- **YOLOv8 (Ultralytics)** — Real-time object detection on video frames
+- **Grounding DINO** (HuggingFace Transformers) — Open-vocabulary zero-shot object detection via text prompts
 - **DeepSORT** — Multi-object tracking with persistent IDs
-- **ChromaDB** — Semantic vector embeddings and similarity search
+- **ChromaDB Cloud** — Managed semantic vector embeddings with local fallback
 
 ---
 
@@ -590,7 +597,8 @@ pytest tests/test_indexing.py -v
 
 - Real video input with OpenCV and actual camera feeds
 - Multi-drone support with coordinated patrol routes
-- BLIP-2 model for offline, on-device frame analysis
+- SAM 2 segmentation for pixel-level object masking
+- VideoMAE for action understanding and behavior analysis
 - Integration with real alert systems (SMS, email, Slack)
 - Geofencing with GPS-based zone definitions
 - Historical pattern analysis with time-series ML models

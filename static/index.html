@@ -115,6 +115,8 @@ tailwind.config = {darkMode:"class",theme:{extend:{colors:{"surface-tint":"#c6c6
 
 <script>
 let simRunning = false;
+let activeEventSource = null;  // Store EventSource so halt can close it
+
 function addLog(time, level, code, msg) {
   const c = document.getElementById('logContainer');
   const blink = document.getElementById('cursor-blink');
@@ -138,6 +140,15 @@ function addLog(time, level, code, msg) {
   c.scrollTop = c.scrollHeight;
 }
 
+function resetSimUI() {
+  simRunning = false;
+  const btn = document.getElementById('runSimBtn');
+  if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+  const recDot = document.getElementById('rec-dot');
+  if (recDot) recDot.classList.remove('animate-pulse');
+  if (activeEventSource) { activeEventSource.close(); activeEventSource = null; }
+}
+
 async function runSimulation() {
   if(simRunning) return;
   simRunning = true;
@@ -152,6 +163,7 @@ async function runSimulation() {
   let framesCount=0, objectsCount=0, alertsCount=0, critCount=0;
   try {
     const es = new EventSource('/api/simulate');
+    activeEventSource = es;
     es.addEventListener('status', e => {
       const d = JSON.parse(e.data);
       status.textContent = d.message;
@@ -176,26 +188,32 @@ async function runSimulation() {
       const d = JSON.parse(e.data);
       addLog(new Date().toLocaleTimeString(),'ok','COMPLETE:',`Simulation done. ${d.total_frames} frames, ${d.total_alerts} alerts.`);
       status.textContent = 'SIMULATION COMPLETE';
-      es.close();
-      simRunning = false;
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      document.getElementById('rec-dot').classList.remove('animate-pulse');
+      resetSimUI();
+    });
+    es.addEventListener('halted', e => {
+      const d = JSON.parse(e.data);
+      addLog(new Date().toLocaleTimeString(),'critical','HALTED:',d.message);
+      status.textContent = 'EMERGENCY HALT — ALL SYSTEMS STOPPED';
+      resetSimUI();
     });
     es.onerror = () => {
       addLog(new Date().toLocaleTimeString(),'error','ERR:','Connection lost');
-      es.close();
-      simRunning = false;
-      btn.disabled = false;
-      btn.style.opacity = '1';
+      resetSimUI();
     };
   } catch(err) {
     addLog(new Date().toLocaleTimeString(),'error','ERR:',err.message);
-    simRunning = false;
-    btn.disabled = false;
-    btn.style.opacity = '1';
+    resetSimUI();
   }
 }
+
+// Listen for emergency halt from shell.js
+window.addEventListener('aegis-halt', () => {
+  if (activeEventSource) { activeEventSource.close(); activeEventSource = null; }
+  const status = document.getElementById('sim-status');
+  if (status) status.textContent = 'EMERGENCY HALT — ALL SYSTEMS STOPPED';
+  addLog(new Date().toLocaleTimeString(),'critical','HALT:','Emergency stop activated by operator.');
+  resetSimUI();
+});
 
 // Load existing state on page load
 fetch('/api/status').then(r=>r.json()).then(d=>{

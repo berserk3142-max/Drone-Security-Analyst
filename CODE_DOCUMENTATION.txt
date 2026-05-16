@@ -1,0 +1,616 @@
+================================================================================
+          DRONE SECURITY ANALYST AGENT — CODE DOCUMENTATION
+================================================================================
+
+Project: Drone Security Analyst Agent
+Author: berserk3142-max
+GitHub: https://github.com/berserk3142-max/Drone-Security-Analyst
+Live: https://berserk3142-drone-security-analyst.hf.space
+License: MIT
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+An AI-powered autonomous drone surveillance system that monitors industrial
+properties 24/7. It processes drone camera frames through a multi-stage AI
+pipeline: Vision Language Model analysis, LangChain ReAct agent reasoning,
+rule-based alert evaluation, and dual-database indexing for structured and
+semantic search.
+
+Key Technologies:
+  - Python 3.11
+  - OpenAI GPT-4o-mini (Vision + Text)
+  - LangChain + LangGraph (ReAct Agent)
+  - YOLOv8 + DeepSORT (Object Detection + Tracking)
+  - SQLite (Structured Storage)
+  - ChromaDB (Semantic Vector Search)
+  - FastAPI + SSE (Web Backend)
+
+================================================================================
+2. PROJECT STRUCTURE
+================================================================================
+
+Drone Security Analyst Agent/
+|
+|-- server.py              Main FastAPI backend (REST API + SSE endpoints)
+|-- app.py                 Streamlit dashboard (alternative UI)
+|-- main.py                CLI monitoring pipeline (console output)
+|-- query.py               CLI query interface (7 query modes)
+|-- config.py              Central configuration and constants
+|-- detector.py            YOLOv8 + DeepSORT video object detector
+|-- requirements.txt       Python dependencies
+|-- Dockerfile             Docker config for HuggingFace Spaces
+|-- .env                   API keys (gitignored)
+|-- .env.example           Template for .env
+|
+|-- simulators/
+|   |-- __init__.py
+|   |-- frames.py          30 simulated drone surveillance frames
+|   |-- telemetry.py       GPS, altitude, battery, wind simulation
+|
+|-- analysis/
+|   |-- __init__.py
+|   |-- vlm_analyzer.py    GPT-4o-mini frame analysis -> structured JSON
+|
+|-- agent/
+|   |-- __init__.py
+|   |-- security_agent.py  LangGraph ReAct agent with memory
+|   |-- tools.py           4 custom LangChain tools
+|   |-- prompts.py         System prompts for agent behavior
+|
+|-- indexing/
+|   |-- __init__.py
+|   |-- sqlite_store.py    SQLite storage (3 tables: frames, alerts, vehicles)
+|   |-- chroma_store.py    ChromaDB semantic vector search
+|
+|-- alerts/
+|   |-- __init__.py
+|   |-- rules_engine.py    8 configurable alert rules, 4 severity levels
+|
+|-- static/
+|   |-- index.html         Live Feed page (simulation + event log)
+|   |-- video.html         Video Analysis page (upload + dual detection)
+|   |-- alerts.html        Alert Dashboard page
+|   |-- query.html         Query Frames page (keyword + semantic)
+|   |-- summary.html       Daily Summary page (AI-generated briefing)
+|   |-- shell.js           Shared navigation, sidebar, panel system
+|
+|-- tests/
+|   |-- test_telemetry.py  Telemetry simulator unit tests
+|   |-- test_alerts.py     Alert rules engine tests (10 test cases)
+|   |-- test_indexing.py   SQLite + ChromaDB integration tests
+|   |-- test_agent.py      Agent tool integration tests
+|
+|-- docs/
+|   |-- architecture.md    Architecture documentation
+|   |-- feature_spec.md    Feature specification
+|
+|-- data/                  (Created at runtime, gitignored)
+    |-- security_events.db SQLite database file
+    |-- chroma_db/         ChromaDB persistent vector store
+
+================================================================================
+3. CONFIGURATION — config.py
+================================================================================
+
+Purpose: Central configuration hub. Loads .env variables and defines constants.
+
+Key Variables:
+  OPENAI_API_KEY       OpenAI API key loaded from .env
+  OPENAI_MODEL         Default model: "gpt-4o-mini"
+  PROPERTY_NAME        "SecureTech Industrial Complex"
+  DRONE_ID             "DRN-01"
+  SQLITE_DB_PATH       "data/security_events.db"
+  CHROMA_DB_PATH       "data/chroma_db"
+  CHROMA_COLLECTION    "drone_frames"
+  BUSINESS_HOURS_START 6 (6:00 AM)
+  BUSINESS_HOURS_END   22 (10:00 PM)
+  SEVERITY_LOW         "LOW"
+  SEVERITY_MEDIUM      "MEDIUM"
+  SEVERITY_HIGH        "HIGH"
+  SEVERITY_CRITICAL    "CRITICAL"
+  KNOWN_VEHICLES       List of recognized employee vehicles
+  LOCATIONS            List of patrol locations
+
+Special Feature:
+  Contains a pysqlite3 monkey-patch at the top of the file to fix ChromaDB's
+  SQLite version requirement on Linux servers (Render, HuggingFace).
+
+Functions:
+  ensure_data_dir()    Creates the data/ directory if it does not exist
+
+================================================================================
+4. SIMULATORS
+================================================================================
+
+4.1 frames.py — Frame Simulator
+--------------------------------
+Function: get_simulated_frames() -> list[dict]
+  Returns 30 drone surveillance frames covering a full 24-hour patrol cycle.
+  Each frame is a dictionary with:
+    - frame_id (int): Sequential ID from 1 to 30
+    - time (str): Timestamp in HH:MM format (e.g., "06:00")
+    - location (str): Patrol location name
+    - description (str): Rich text description of what the camera sees
+
+  Frame Categories:
+    Frames 1-5   (06:00-07:00)  Early morning, employee arrivals
+    Frames 6-10  (08:30-10:30)  Business hours, deliveries
+    Frames 11-14 (11:30-13:00)  Midday, routine + suspicious vehicle
+    Frames 15-20 (14:30-17:30)  Afternoon, suspicious persons, departures
+    Frames 21-24 (18:30-21:30)  Evening, reduced activity
+    Frames 25-30 (22:15-01:00)  Night, breach attempts, theft
+
+Function: get_frame_by_id(frame_id: int) -> dict | None
+  Returns a specific frame by its ID.
+
+Function: get_frames_by_time_range(start: str, end: str) -> list[dict]
+  Returns frames within a time range. Handles overnight ranges.
+
+4.2 telemetry.py — Telemetry Simulator
+---------------------------------------
+Class: TelemetrySimulator
+  Simulates drone telemetry data for each patrol frame.
+
+  __init__(drone_id: str)
+    Initializes with 100% battery and mission_start flag.
+
+  get_telemetry(time_str: str, location: str) -> dict
+    Returns telemetry dictionary:
+      - drone_id: Drone identifier
+      - time: Timestamp
+      - location: Patrol location
+      - altitude_m: 8-25m (varies by location type)
+      - battery_pct: Drains 1-3% per frame (starts 95-100%)
+      - wind_speed_kmh: 1-15 km/h (calmer at night)
+      - gps_signal: "strong" (90%) or "moderate" (10%)
+      - status: "patrolling"
+
+  Altitude Logic:
+    Gate areas:      10-15m
+    Perimeter fence: 15-25m
+    Parking lots:    12-18m
+    Warehouse/Dock:  8-14m
+    Server room:     10-15m
+
+================================================================================
+5. ANALYSIS — vlm_analyzer.py
+================================================================================
+
+Purpose: Sends frame descriptions to GPT-4o-mini for structured analysis.
+
+Function: analyze_frame(description: str, telemetry: dict) -> dict
+  Input:
+    - description: Text description of the frame (from simulator or Vision API)
+    - telemetry: Drone telemetry data
+
+  Process:
+    1. Builds a security analyst system prompt
+    2. Constructs a user message with frame description + telemetry
+    3. Calls GPT-4o-mini API requesting JSON output
+    4. Parses the structured response
+
+  Output (dict):
+    - objects (list[str]): Detected objects (e.g., ["Person", "Blue Ford F150"])
+    - event_type (str): Classification (e.g., "suspicious_activity", "delivery")
+    - risk_level (str): "low", "medium", "high", or "critical"
+    - is_suspicious (bool): Whether the frame contains suspicious activity
+    - description (str): AI-generated analysis summary
+    - recommended_action (str): Suggested security response
+
+  Fallback:
+    If the API call fails, a keyword-based fallback parser extracts basic
+    analysis from the description text using pattern matching.
+
+================================================================================
+6. AGENT — security_agent.py, tools.py, prompts.py
+================================================================================
+
+6.1 security_agent.py — LangGraph ReAct Agent
+----------------------------------------------
+Class: SecurityAgent
+  The core AI agent that processes frames, makes security decisions, and
+  maintains awareness of previous events.
+
+  __init__(sqlite_store, chroma_store, alert_manager)
+    1. Initializes tool dependencies via init_tools()
+    2. Creates ChatOpenAI LLM (gpt-4o-mini, temperature=0.1)
+    3. Builds LangGraph ReAct agent with 4 tools
+    4. Sets up conversation memory (last 20 messages)
+
+  process_frame(frame: dict, analysis: dict, telemetry: dict) -> dict
+    1. Constructs a detailed prompt with frame data + analysis + telemetry
+    2. Appends to conversation memory
+    3. Invokes the LangGraph agent (which may call tools autonomously)
+    4. Extracts the agent's response
+    5. Returns dict with agent_response and any tool results
+
+  get_summary() -> str
+    Invokes the agent with a summary prompt to generate a session report.
+
+6.2 tools.py — 4 Custom LangChain Tools
+-----------------------------------------
+All tools are decorated with @tool and accept JSON string inputs.
+
+Tool 1: log_event(event_json: str) -> str
+  Logs a security event to both databases.
+  - Writes to SQLite (frames table)
+  - Writes to ChromaDB (vector embeddings)
+  - Tracks vehicle re-entries (vehicle_log table)
+  - Returns confirmation with re-entry warnings
+
+Tool 2: check_alert_rules(analysis_json: str) -> str
+  Evaluates all 8 alert rules against a frame analysis.
+  - Gets vehicle context from SQLite
+  - Calls AlertManager.evaluate_rules()
+  - Logs triggered alerts to SQLite
+  - Returns list of triggered alerts or "No alerts triggered"
+
+Tool 3: query_past_events(query: str) -> str
+  Searches past events using both search engines.
+  - SQLite keyword search (LIKE queries)
+  - ChromaDB semantic search (vector similarity)
+  - Returns up to 5 results from each source
+
+Tool 4: generate_summary() -> str
+  Generates a session summary report.
+  - Retrieves stats from SQLite (total frames, alerts, suspicious count)
+  - Lists all alerts by severity
+  - Lists all suspicious frames with details
+  - Returns formatted text summary
+
+6.3 prompts.py — System Prompts
+--------------------------------
+SECURITY_AGENT_SYSTEM_PROMPT:
+  Defines the agent's role as an elite AI Security Analyst. Instructs it to:
+  - LOG every event using tools
+  - EVALUATE alert rules
+  - IDENTIFY patterns (repeat vehicles, loitering, escalation)
+  - RECOMMEND actions based on risk level
+
+SUMMARY_PROMPT:
+  Template for generating end-of-session security briefings.
+
+================================================================================
+7. OBJECT DETECTION — detector.py
+================================================================================
+
+Class: VideoDetector
+  YOLOv8 + DeepSORT real-time object detection and tracking system.
+
+  __init__(model_path="yolov8n.pt", confidence=0.4)
+    - Loads YOLOv8 nano model (auto-downloads if not present)
+    - Initializes DeepSORT tracker
+    - Defines 17 security-relevant COCO classes:
+      person, bicycle, car, motorcycle, bus, truck, backpack, umbrella,
+      handbag, suitcase, bottle, cup, laptop, cell phone, book, clock, vase
+
+  process_frame(frame: np.ndarray) -> dict
+    Input: Raw OpenCV frame (BGR numpy array)
+    Process:
+      1. Run YOLOv8 inference
+      2. Filter detections by confidence and relevant classes
+      3. Update DeepSORT tracker for persistent IDs
+      4. Draw bounding boxes with color coding
+    Output:
+      - annotated_frame: Frame with drawn bounding boxes
+      - active_tracks: List of tracked objects with IDs
+      - raw_detections: List of all detections with confidence scores
+      - frame_count: Processing counter
+
+  Color Coding:
+    Person:    Orange (255, 165, 0)
+    Backpack:  Red (0, 0, 255)
+    Vehicles:  Cyan (255, 255, 0)
+    Other:     Green (0, 255, 0)
+
+================================================================================
+8. ALERT RULES ENGINE — rules_engine.py
+================================================================================
+
+8 Configurable Alert Rules:
+
+  Rule 1: after_hours_person (HIGH)
+    Trigger: Person detected between 22:00-06:00
+    
+  Rule 2: perimeter_breach (CRITICAL)
+    Trigger: Person near fence + breach keywords (climb, cut, test, break)
+    
+  Rule 3: unauthorized_access (CRITICAL)
+    Trigger: No badge/ski mask near server room, warehouse, or loading dock
+    
+  Rule 4: unknown_vehicle_night (HIGH)
+    Trigger: Unrecognized vehicle after business hours
+    
+  Rule 5: vehicle_reentry (MEDIUM)
+    Trigger: Same vehicle seen more than once (possible surveillance)
+    
+  Rule 6: suspicious_behavior (HIGH)
+    Trigger: Keywords: loitering, photographing, circling, casing, watching
+    
+  Rule 7: door_anomaly (MEDIUM)
+    Trigger: Door open/ajar when it should be closed
+    
+  Rule 8: unauthorized_parking (LOW)
+    Trigger: Vehicle in unauthorized parking zone
+
+Class: AlertManager
+  evaluate_rules(frame_analysis: dict, context: dict) -> list[dict]
+    Evaluates all 8 rules against a single frame analysis.
+    Returns list of triggered alert dictionaries.
+
+  get_alert_summary() -> dict
+    Returns total alerts, grouped by severity.
+
+================================================================================
+9. INDEXING / DATABASES
+================================================================================
+
+9.1 sqlite_store.py — SQLite Structured Storage
+-------------------------------------------------
+Class: SQLiteStore
+  File: data/security_events.db
+
+  Tables:
+    frames:
+      frame_id (PK), timestamp, location, objects_detected (JSON),
+      event_type, risk_level, is_suspicious, raw_description,
+      analysis_summary, agent_response, created_at
+
+    alerts:
+      alert_id (PK), frame_id (FK), timestamp, rule_name, severity,
+      message, location, created_at
+
+    vehicle_log:
+      id (PK), vehicle_description, frame_id (FK), timestamp,
+      location, entry_count
+
+  Key Methods:
+    insert_frame(...)          Insert a processed frame
+    insert_alert(...)          Insert a triggered alert
+    log_vehicle(...)           Log vehicle sighting, return entry count
+    query_by_object(type)      Search frames by object type (LIKE)
+    query_by_time_range(s, e)  Search by time window
+    query_by_location(loc)     Search by location
+    query_suspicious_frames()  Get all suspicious frames
+    get_all_alerts()           Get all alerts ordered by time
+    get_vehicle_count(desc)    Get sighting count for a vehicle
+    get_session_stats()        Get summary statistics
+    clear_all()                Reset all data for new session
+
+9.2 chroma_store.py — ChromaDB Semantic Search
+------------------------------------------------
+Class: ChromaStore
+  Directory: data/chroma_db/
+  Collection: drone_frames
+
+  Document Format:
+    "Time: {timestamp}. Location: {location}. {description}
+     Event type: {event_type}. Risk level: {risk_level}.
+     Objects: {objects}."
+
+  Key Methods:
+    add_frame(...)                  Add frame to vector store
+    semantic_search(query, top_k)   Natural language similarity search
+    get_similar_frames(frame_id)    Find frames similar to a given frame
+    get_frame_count()               Total indexed frames
+    clear_all()                     Delete and recreate collection
+
+================================================================================
+10. WEB SERVER — server.py
+================================================================================
+
+Framework: FastAPI with Server-Sent Events (SSE)
+
+API Endpoints:
+
+  GET  /                        Serve main dashboard (index.html)
+  GET  /api/status              Current simulation state (JSON)
+  POST /api/reset               Force-reset simulation lock
+  GET  /api/simulate            SSE — Start patrol simulation, stream results
+  GET  /api/alerts              Get alerts, optional ?severity= filter
+  GET  /api/frames              Get all processed frames
+  GET  /api/frames/search       Search frames (?q=, ?risk=, ?time_filter=)
+  GET  /api/semantic            ChromaDB semantic search (?q=)
+  GET  /api/summary             Get stored summary
+  POST /api/generate_summary    Generate fresh AI summary
+  POST /api/analyze_video       SSE — Upload video for dual YOLO+VLM detection
+  GET  /api/stats               Database statistics
+
+Simulation Flow (GET /api/simulate):
+  1. Resets state, initializes all components
+  2. Creates SecurityAgent with LangGraph
+  3. Loops through 30 frames:
+     a. Generate telemetry
+     b. Analyze frame with VLM (GPT-4o-mini)
+     c. Process with LangChain agent (log, alert, query tools)
+     d. Stream result via SSE
+  4. Generate AI summary
+  5. Stream completion event
+  6. Always resets running flag (try/finally)
+
+Video Analysis Flow (POST /api/analyze_video):
+  1. Save uploaded video to temp file
+  2. Extract up to 20 frames (2-sec intervals, 90% JPEG quality)
+  3. For each frame:
+     a. YOLOv8 detection (bounding boxes + confidence)
+     b. GPT-4o-mini Vision analysis (contextual description)
+     c. Merge YOLO objects + VLM objects (deduplicated)
+     d. Run through security analysis pipeline
+     e. Stream result via SSE
+  4. Clean up temp file
+
+================================================================================
+11. FRONTEND — static/*.html + shell.js
+================================================================================
+
+All pages share a common navigation shell injected by shell.js:
+  - Top navigation bar with 5 page tabs
+  - Left sidebar with 5 panel links (Systems, Drones, Telemetry, Payload, Security)
+  - Emergency Stop button
+  - Logs and Terminal panels
+
+Page Details:
+
+  index.html (Live Feed):
+    - 4 LCD metric displays (Frames, Objects, Alerts, Critical)
+    - Run Simulation button with 3D press animation
+    - Real-time Event Log Stream with color-coded entries
+    - SSE connection to /api/simulate
+
+  video.html (Video Analysis):
+    - Drag-and-drop video upload
+    - Operational log showing YOLO + VLM results per frame
+    - Detection counts and confidence scores
+    - SSE connection to /api/analyze_video
+
+  alerts.html (Alerts):
+    - Alert cards filtered by severity
+    - Color-coded severity badges
+    - Fetches from /api/alerts
+
+  query.html (Query Frames):
+    - Keyword search input
+    - Risk level filter dropdown
+    - Time filter (Any, Business Hours, After Hours)
+    - Semantic search toggle (ChromaDB)
+    - Results table with frame details
+
+  summary.html (Daily Summary):
+    - Generate Summary button
+    - AI-generated security briefing display
+    - Calls POST /api/generate_summary
+
+================================================================================
+12. CLI INTERFACES
+================================================================================
+
+12.1 main.py — Console Monitoring Pipeline
+-------------------------------------------
+Usage: python main.py
+
+Flow:
+  1. Initialize SQLite, ChromaDB, AlertManager, TelemetrySimulator
+  2. Create SecurityAgent
+  3. Process 30 frames sequentially (4-second delay between frames)
+  4. For each frame: telemetry -> VLM analysis -> agent processing -> print
+  5. Print session summary with Rich tables
+  6. Generate AI summary
+
+12.2 query.py — Event Query CLI
+---------------------------------
+Usage: python query.py [options]
+
+Options:
+  --object, -o "truck"       Search by object type (SQLite LIKE)
+  --time, -t "after 22:00"   Search by time range
+  --search, -s "suspicious"  Semantic search (ChromaDB)
+  --alerts, -a               Show all triggered alerts
+  --summary                  Show session statistics
+  --suspicious               Show all suspicious events
+  --location, -l "Main Gate" Search by location
+
+================================================================================
+13. TESTING
+================================================================================
+
+Run: pytest tests/ -v
+
+test_telemetry.py:
+  - Battery drain range validation
+  - Altitude varies by location type
+  - Wind speed calmer at night
+  - GPS signal distribution
+
+test_alerts.py (10 tests):
+  - After-hours person detection
+  - Perimeter breach with climbing keywords
+  - Unauthorized access with ski mask
+  - Unknown vehicle at night
+  - Vehicle re-entry counting
+  - Suspicious behavior keywords
+  - Door anomaly detection
+  - Unauthorized parking
+  - Normal activity (no false alerts)
+  - Multiple simultaneous alerts
+
+test_indexing.py:
+  - SQLite frame insert and retrieval
+  - SQLite alert insert and query
+  - Vehicle logging and count tracking
+  - Time range queries (including overnight)
+  - ChromaDB add and semantic search
+  - ChromaDB similar frame lookup
+
+test_agent.py:
+  - Agent initialization
+  - Tool calling via LangGraph
+  - Memory management (20-message window)
+
+================================================================================
+14. DEPLOYMENT
+================================================================================
+
+Local:
+  pip install -r requirements.txt
+  python server.py
+  Open http://localhost:8000
+
+Docker (HuggingFace Spaces):
+  Uses Dockerfile with python:3.11-slim
+  Exposes port 7860
+  Set OPENAI_API_KEY as Repository Secret
+
+Environment Variables:
+  OPENAI_API_KEY    Required. Your OpenAI API key.
+  PORT              Optional. Server port (default: 8000 local, 7860 Docker)
+  PYTHON_VERSION    Optional. For Render deployment (3.11.0)
+
+================================================================================
+15. DATA FLOW DIAGRAM
+================================================================================
+
+  Drone Camera Frame (text/image)
+         |
+         v
+  +------------------+
+  | Telemetry Sim    |  GPS, altitude, battery, wind
+  +------------------+
+         |
+         v
+  +------------------+     +------------------+
+  | VLM Analyzer     |     | YOLOv8 Detector  |  (video only)
+  | (GPT-4o-mini)    |     | (Bounding Boxes) |
+  +------------------+     +------------------+
+         |                        |
+         v                        v
+  +-------------------------------+
+  | Merge Objects (Deduplicated)  |
+  +-------------------------------+
+         |
+         v
+  +------------------+
+  | LangChain Agent  |  ReAct loop with 4 tools
+  | (LangGraph)      |
+  +--------+---------+
+           |
+     +-----+-----+-----+-----+
+     |           |           |
+     v           v           v
+  log_event  check_alert  query_past
+     |        rules        events
+     v           |           |
+  +------+  +--------+  +--------+
+  |SQLite|  | Alert   |  |ChromaDB|
+  |  DB  |  | Manager |  | Vector |
+  +------+  +--------+  +--------+
+     |           |
+     v           v
+  +-------------------------------+
+  | Dashboard / CLI / API Output  |
+  +-------------------------------+
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================

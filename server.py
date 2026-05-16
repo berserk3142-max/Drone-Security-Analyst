@@ -27,6 +27,7 @@ app = FastAPI(title="Aegis Drone Command")
 # --- State ---
 sim_state = {
     "running": False,
+    "halt_requested": False,
     "results": [],
     "alerts": [],
     "frames_done": 0,
@@ -51,7 +52,17 @@ async def get_status():
 async def reset_state():
     """Force-reset the simulation state (unlocks if stuck)."""
     sim_state["running"] = False
+    sim_state["halt_requested"] = False
     return {"status": "reset", "message": "Simulation state reset successfully"}
+
+@app.post("/api/halt")
+async def halt_simulation():
+    """Emergency halt — stop the running simulation immediately."""
+    if sim_state["running"]:
+        sim_state["halt_requested"] = True
+        return {"status": "halting", "message": "Emergency halt signal sent. Simulation stopping..."}
+    else:
+        return {"status": "idle", "message": "No simulation is currently running."}
 
 @app.get("/api/simulate")
 async def simulate():
@@ -62,6 +73,7 @@ async def simulate():
 
     async def event_generator():
         sim_state["running"] = True
+        sim_state["halt_requested"] = False
         sim_state["results"] = []
         sim_state["alerts"] = []
         sim_state["frames_done"] = 0
@@ -86,6 +98,14 @@ async def simulate():
             sim_state["total_frames"] = len(frames)
 
             for i, frame in enumerate(frames):
+                # Check for emergency halt
+                if sim_state["halt_requested"]:
+                    yield {"event": "halted", "data": json.dumps({
+                        "message": "EMERGENCY HALT — Simulation stopped by operator.",
+                        "frames_completed": sim_state["frames_done"],
+                    })}
+                    break
+
                 telemetry = telemetry_sim.get_telemetry(frame["time"], frame["location"])
 
                 loop = asyncio.get_event_loop()
@@ -252,18 +272,18 @@ async def generate_summary_now():
 from openai import OpenAI as _OpenAI
 _vision_client = _OpenAI(api_key=OPENAI_API_KEY)
 
-# Lazy-loaded YOLO detector for video analysis
-_yolo_detector = None
+# Lazy-loaded Grounding DINO detector for video analysis
+_gdino_detector = None
 
-def _get_yolo_detector():
-    """Lazily initialize YOLO detector to avoid slow startup."""
-    global _yolo_detector
-    if _yolo_detector is None:
+def _get_detector():
+    """Lazily initialize Grounding DINO detector to avoid slow startup."""
+    global _gdino_detector
+    if _gdino_detector is None:
         from detector import VideoDetector
-        _yolo_detector = VideoDetector(confidence=0.3)
+        _gdino_detector = VideoDetector(confidence=0.3)
     else:
-        _yolo_detector.reset()
-    return _yolo_detector
+        _gdino_detector.reset()
+    return _gdino_detector
 
 def _extract_frames(video_path, interval_sec=2, max_frames=20):
     """Extract frames from video at regular intervals with high quality."""
@@ -294,16 +314,16 @@ def _extract_frames(video_path, interval_sec=2, max_frames=20):
             "index": len(frames),
             "timestamp": f"{int(timestamp_sec//60):02d}:{int(timestamp_sec%60):02d}",
             "base64": b64,
-            "raw_frame": frame,  # Keep raw frame for YOLO detection
+            "raw_frame": frame,  # Keep raw frame for Grounding DINO detection
         })
         idx += step
     cap.release()
     return frames, round(duration, 1)
 
-def _detect_objects_yolo(frame_bgr):
-    """Run YOLO object detection on a raw OpenCV frame."""
+def _detect_objects_gdino(frame_bgr):
+    """Run Grounding DINO object detection on a raw OpenCV frame."""
     try:
-        detector = _get_yolo_detector()
+        detector = _get_detector()
         result = detector.process_frame(frame_bgr)
         objects = []
         seen = set()
@@ -319,14 +339,14 @@ def _detect_objects_yolo(frame_bgr):
                 seen.add(label)
         return objects, result.get("raw_detections", [])
     except Exception as e:
-        print(f"  [YOLO Error] {e}")
+        print(f"  [Grounding DINO Error] {e}")
         return [], []
 
-def _describe_frame_with_vision(b64_image, yolo_objects=None):
+def _describe_frame_with_vision(b64_image, detected_objects=None):
     """Send frame to OpenAI Vision API for detailed description."""
-    yolo_hint = ""
-    if yolo_objects:
-        yolo_hint = f"\n\nNote: An object detector has already identified these objects in the frame: {', '.join(yolo_objects)}. Use this to cross-reference your analysis."
+    detector_hint = ""
+    if detected_objects:
+        detector_hint = f"\n\nNote: Grounding DINO (open-vocabulary detector) has identified these objects in the frame: {', '.join(detected_objects)}. Use this to cross-reference your analysis."
     try:
         resp = _vision_client.chat.completions.create(
             model="gpt-4o-mini",
@@ -347,7 +367,7 @@ def _describe_frame_with_vision(b64_image, yolo_objects=None):
                     "Describe in 4-6 detailed sentences."
                 )},
                 {"role": "user", "content": [
-                    {"type": "text", "text": f"Analyze this drone surveillance frame in detail. Identify every person, vehicle, animal, and object visible.{yolo_hint}"},
+                    {"type": "text", "text": f"Analyze this drone surveillance frame in detail. Identify every person, vehicle, animal, and object visible.{detector_hint}"},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_image}", "detail": "high"}}
                 ]}
             ],
@@ -387,22 +407,22 @@ async def analyze_video(file: UploadFile = File(...)):
             telemetry_sim = TelemetrySimulator()
 
             for i, frame_data in enumerate(frames):
-                yield {"event": "status", "data": json.dumps({"message": f"Analyzing frame {i+1}/{len(frames)} — Running object detection..."})}
+                yield {"event": "status", "data": json.dumps({"message": f"Analyzing frame {i+1}/{len(frames)} — Running Grounding DINO detection..."})}
 
-                # Step 1: Run YOLO object detection on the raw frame
+                # Step 1: Run Grounding DINO object detection on the raw frame
                 raw_frame = frame_data.get("raw_frame")
-                yolo_objects = []
-                yolo_detections = []
+                gdino_objects = []
+                gdino_detections = []
                 if raw_frame is not None:
-                    yolo_objects, yolo_detections = await loop.run_in_executor(
-                        None, _detect_objects_yolo, raw_frame
+                    gdino_objects, gdino_detections = await loop.run_in_executor(
+                        None, _detect_objects_gdino, raw_frame
                     )
 
                 yield {"event": "status", "data": json.dumps({"message": f"Analyzing frame {i+1}/{len(frames)} — Running vision AI..."})}
 
-                # Step 2: Get AI description with YOLO hints for cross-referencing
+                # Step 2: Get AI description with Grounding DINO hints for cross-referencing
                 description = await loop.run_in_executor(
-                    None, _describe_frame_with_vision, frame_data["base64"], yolo_objects
+                    None, _describe_frame_with_vision, frame_data["base64"], gdino_objects
                 )
 
                 # Build telemetry
@@ -417,17 +437,17 @@ async def analyze_video(file: UploadFile = File(...)):
                 # Step 3: Run through existing analysis pipeline
                 analysis = await loop.run_in_executor(None, analyze_frame, description, telemetry)
 
-                # Step 4: Merge objects — combine YOLO detections with VLM-identified objects
+                # Step 4: Merge objects — combine Grounding DINO detections with VLM-identified objects
                 vlm_objects = analysis.get("objects", [])
                 merged_objects = list(vlm_objects)  # Start with VLM objects
                 vlm_lower = {o.lower() for o in vlm_objects}
-                for yobj in yolo_objects:
-                    if yobj.lower() not in vlm_lower:
-                        merged_objects.append(yobj)
+                for gobj in gdino_objects:
+                    if gobj.lower() not in vlm_lower:
+                        merged_objects.append(gobj)
 
-                # Add detection counts from YOLO for more accuracy
+                # Add detection counts from Grounding DINO for more accuracy
                 det_counts = {}
-                for det in yolo_detections:
+                for det in gdino_detections:
                     label = det.get("label", "unknown")
                     det_counts[label] = det_counts.get(label, 0) + 1
 
@@ -436,7 +456,7 @@ async def analyze_video(file: UploadFile = File(...)):
                     "time": frame_data["timestamp"],
                     "location": telemetry["location"],
                     "objects": merged_objects,
-                    "yolo_detections": [{"label": d["label"], "confidence": d["confidence"]} for d in yolo_detections],
+                    "detections": [{"label": d["label"], "confidence": d["confidence"]} for d in gdino_detections],
                     "detection_counts": det_counts,
                     "event_type": analysis.get("event_type", "unknown"),
                     "risk_level": analysis.get("risk_level", "low").upper(),

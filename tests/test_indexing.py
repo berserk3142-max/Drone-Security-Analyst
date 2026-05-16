@@ -160,7 +160,7 @@ class TestChromaStore:
         """Create a fresh test ChromaDB."""
         self.test_dir = tempfile.mkdtemp()
         self.chroma_path = os.path.join(self.test_dir, "test_chroma")
-        self.store = ChromaStore(db_path=self.chroma_path, collection_name="test_frames")
+        self.store = ChromaStore(db_path=self.chroma_path, collection_name="test_frames", use_cloud=False)
 
     def teardown_method(self):
         """Cleanup."""

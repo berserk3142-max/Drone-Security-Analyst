@@ -1,35 +1,37 @@
 """
-Video Detector — YOLOv8 + DeepSORT real-time object detection & tracking.
+Video Detector — Grounding DINO + DeepSORT real-time object detection & tracking.
 
-Processes drone surveillance video frame-by-frame, detecting and tracking
-objects (people, vehicles, etc.) with persistent IDs across frames.
+Uses Grounding DINO (via HuggingFace Transformers) for open-vocabulary,
+text-prompted zero-shot object detection. Combined with DeepSORT for
+persistent object tracking across frames.
+
+Key advantages over YOLOv8:
+  - Text prompt detection: detect any object by description
+  - Zero-shot: no retraining needed for new object types
+  - Open vocabulary: "person with helmet", "red car", "intruder near fence"
+  - Dynamic prompts: change detection targets at runtime
 """
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
+import torch
+from PIL import Image
+from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection
 from deep_sort_realtime.deepsort_tracker import DeepSort
 
 
-# Security-relevant COCO classes
-SECURITY_CLASSES = {
-    0: "person",
-    1: "bicycle",
-    2: "car",
-    3: "motorcycle",
-    5: "bus",
-    7: "truck",
-    14: "bird",
-    15: "cat",
-    16: "dog",
-    24: "backpack",
-    25: "umbrella",
-    26: "handbag",
-    27: "tie",
-    28: "suitcase",
-    63: "laptop",
-    67: "cell phone",
-}
+# Security-focused detection prompt — period-separated object classes
+# Grounding DINO requires lowercase text with periods between classes
+SECURITY_PROMPT = (
+    "person . car . truck . motorcycle . bicycle . bus . "
+    "backpack . suitcase . bag . dog . cat . bird . "
+    "laptop . cell phone . helmet . weapon . knife . gun . "
+    "fence . gate . door . fire . smoke . drone . van . "
+    "uniform . flashlight . camera ."
+)
+
+# Grounding DINO model ID from HuggingFace Hub
+GDINO_MODEL_ID = "IDEA-Research/grounding-dino-tiny"
 
 # Risk colors for bounding boxes (BGR for OpenCV)
 RISK_COLORS = {
@@ -41,35 +43,53 @@ RISK_COLORS = {
     "bicycle": (180, 180, 0),    # Cyan
     "backpack": (0, 0, 255),     # Red
     "suitcase": (0, 0, 200),     # Dark red
+    "weapon": (0, 0, 255),       # Red
+    "knife": (0, 0, 255),        # Red
+    "gun": (0, 0, 255),          # Red
+    "fire": (0, 50, 255),        # Red-orange
+    "smoke": (128, 128, 128),    # Gray
+    "drone": (255, 0, 255),      # Magenta
     "default": (0, 255, 0),      # Green
 }
 
 
 class VideoDetector:
-    """YOLOv8 + DeepSORT object detection and tracking for drone footage."""
+    """Grounding DINO + DeepSORT object detection and tracking for drone footage."""
 
-    def __init__(self, model_name: str = "yolov8n.pt", confidence: float = 0.4):
+    def __init__(self, confidence: float = 0.4, text_prompt: str = None):
         """
         Initialize the detector.
 
         Args:
-            model_name: YOLOv8 model name (auto-downloads on first use)
-            confidence: Minimum detection confidence threshold
+            confidence: Minimum detection confidence (box_threshold)
+            text_prompt: Custom text prompt for detection (period-separated).
+                         Defaults to SECURITY_PROMPT.
         """
-        self.model = YOLO(model_name)
+        print(f"[Grounding DINO] Loading model: {GDINO_MODEL_ID}...")
+        self.processor = AutoProcessor.from_pretrained(GDINO_MODEL_ID)
+        self.model = AutoModelForZeroShotObjectDetection.from_pretrained(GDINO_MODEL_ID)
+
+        # Use GPU if available, otherwise CPU
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model = self.model.to(self.device)
+        self.model.eval()
+        print(f"[Grounding DINO] Model loaded on {self.device}")
+
         self.tracker = DeepSort(
             max_age=30,
             n_init=3,
             max_iou_distance=0.7,
         )
         self.confidence = confidence
+        self.text_threshold = 0.25
+        self.text_prompt = text_prompt or SECURITY_PROMPT
         self.frame_count = 0
         self.total_detections = 0
         self.unique_tracks = set()
 
     def process_frame(self, frame: np.ndarray) -> dict:
         """
-        Process a single video frame through YOLO + DeepSORT.
+        Process a single video frame through Grounding DINO + DeepSORT.
 
         Args:
             frame: OpenCV BGR frame (numpy array)
@@ -79,18 +99,58 @@ class VideoDetector:
         """
         self.frame_count += 1
 
-        # Run YOLO detection
-        results = self.model(frame, verbose=False)[0]
+        # Convert BGR (OpenCV) to RGB (PIL)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        pil_image = Image.fromarray(frame_rgb)
+        h, w = frame.shape[:2]
+
+        # Run Grounding DINO detection
+        inputs = self.processor(
+            images=pil_image,
+            text=self.text_prompt,
+            return_tensors="pt"
+        ).to(self.device)
+
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+
+        # Post-process results
+        results = self.processor.post_process_grounded_object_detection(
+            outputs,
+            inputs.input_ids,
+            threshold=self.confidence,
+            text_threshold=self.text_threshold,
+            target_sizes=[(h, w)]
+        )
+
         detections = []
         raw_detections = []
 
-        for box in results.boxes:
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-            conf = float(box.conf[0])
-            cls = int(box.cls[0])
-            label = self.model.names.get(cls, f"class_{cls}")
+        if results and len(results) > 0:
+            result = results[0]
+            boxes = result["boxes"]
+            scores = result["scores"]
+            # Use text_labels if available, otherwise fall back to labels
+            labels = result.get("text_labels", result.get("labels", []))
 
-            if conf >= self.confidence and cls in SECURITY_CLASSES:
+            for i in range(len(boxes)):
+                box = boxes[i].cpu().tolist()
+                conf = scores[i].cpu().item()
+                raw_label = labels[i]
+                # Handle both string labels and tensor indices
+                if isinstance(raw_label, str):
+                    label = raw_label.strip().lower()
+                else:
+                    label = str(raw_label).strip().lower()
+
+                # Skip empty labels or zero-area bounding boxes
+                if not label:
+                    continue
+
+                x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+                if (x2 - x1) <= 0 or (y2 - y1) <= 0:
+                    continue
+
                 # DeepSORT expects [x, y, w, h]
                 detections.append(([x1, y1, x2 - x1, y2 - y1], conf, label))
                 raw_detections.append({
@@ -163,6 +223,17 @@ class VideoDetector:
 
         parts = [f"{count} {label}{'s' if count > 1 else ''}" for label, count in objects.items()]
         return f"Detected: {', '.join(parts)}"
+
+    def set_prompt(self, prompt: str):
+        """
+        Dynamically update the detection text prompt.
+
+        This is a key advantage over YOLO — change what you detect at runtime.
+
+        Args:
+            prompt: Period-separated detection classes (e.g., "person . weapon . fire .")
+        """
+        self.text_prompt = prompt.lower()
 
     def reset(self):
         """Reset tracker state for a new video."""

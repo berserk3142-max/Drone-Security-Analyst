@@ -214,17 +214,38 @@ function emergencyStop(el) {
   if (!btn || btn.dataset.stopping) return;
   btn.dataset.stopping = '1';
   btn.classList.add('translate-y-[3px]');
-  btn.innerHTML = `<span class="material-symbols-outlined text-[16px] animate-spin" style="font-variation-settings:'FILL' 1">sync</span>STOPPING ALL...`;
-  setTimeout(() => {
-    btn.innerHTML = `<span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1">check_circle</span>ALL HALTED`;
-    btn.classList.remove('bg-error'); btn.classList.add('bg-secondary-fixed-dim','text-black');
-    setTimeout(() => {
-      btn.classList.remove('translate-y-[3px]','bg-secondary-fixed-dim','text-black');
-      btn.classList.add('bg-error');
-      btn.innerHTML = `<span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1">warning</span>EMERGENCY STOP`;
-      delete btn.dataset.stopping;
-    }, 2000);
-  }, 1500);
+  btn.innerHTML = `<span class="material-symbols-outlined text-[16px] animate-spin" style="font-variation-settings:'FILL' 1">sync</span>HALTING...`;
+
+  // Call the backend halt endpoint
+  fetch('/api/halt', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      // Also reset simulation state
+      return fetch('/api/reset', { method: 'POST' });
+    })
+    .then(r => r.json())
+    .then(() => {
+      btn.innerHTML = `<span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1">check_circle</span>ALL HALTED`;
+      btn.classList.remove('bg-error'); btn.classList.add('bg-secondary-fixed-dim','text-black');
+
+      // Dispatch a global halt event so pages can clean up their EventSource / state
+      window.dispatchEvent(new CustomEvent('aegis-halt'));
+
+      setTimeout(() => {
+        btn.classList.remove('translate-y-[3px]','bg-secondary-fixed-dim','text-black');
+        btn.classList.add('bg-error');
+        btn.innerHTML = `<span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1">warning</span>EMERGENCY STOP`;
+        delete btn.dataset.stopping;
+      }, 2500);
+    })
+    .catch(err => {
+      btn.innerHTML = `<span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1">error</span>HALT FAILED`;
+      setTimeout(() => {
+        btn.classList.remove('translate-y-[3px]');
+        btn.innerHTML = `<span class="material-symbols-outlined text-[16px]" style="font-variation-settings:'FILL' 1">warning</span>EMERGENCY STOP`;
+        delete btn.dataset.stopping;
+      }, 2000);
+    });
 }
 
 function buildTopNav() {
@@ -249,7 +270,7 @@ function buildTopNav() {
   const right = document.createElement('div');
   right.className = 'flex items-center gap-2 shrink-0';
   right.innerHTML = `<button onclick="openPanel('settings')" class="p-2 hover:bg-surface-bright rounded transition-colors text-primary"><span class="material-symbols-outlined text-[20px]">settings</span></button>
-    <button onclick="emergencyStop.call(this)" class="p-2 hover:bg-surface-bright rounded transition-colors text-error"><span class="material-symbols-outlined text-[20px]">power_settings_new</span></button>`;
+    <button onclick="emergencyStop(this)" class="p-2 hover:bg-surface-bright rounded transition-colors text-error"><span class="material-symbols-outlined text-[20px]">power_settings_new</span></button>`;
   nav.appendChild(brand); nav.appendChild(tabs); nav.appendChild(right);
   return nav;
 }
